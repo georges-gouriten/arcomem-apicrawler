@@ -4,10 +4,10 @@ ARCOMEM API Crawler
 License
 -------
 
-DBWeb REST API Crawler: a flexible REST API crawler developed for the
-ARCOMEM project (http://arcomem.eu)
+ARCOMEM API Crawler: a crawler for the social Web controlled via a RESTful
+Web interface. Developed for the ARCOMEM project (http://arcomem.eu)
 
-Copyright (C) 2011  Georges GOURITEN (georges.gouriten-at-gmail-dot-com)
+Copyright (C) 2012  Georges GOURITEN (georges.gouriten-at-gmail-dot-com)
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
