@@ -1,11 +1,11 @@
 ARCOMEM API Crawler
 ==================
 
-License
--------
-
 ARCOMEM API Crawler: a crawler for the social Web controlled via a RESTful
 Web interface. Developed for the ARCOMEM project (http://arcomem.eu)
+
+License
+-------
 
 Copyright (C) 2012  Georges GOURITEN (georges.gouriten-at-gmail-dot-com)
 
