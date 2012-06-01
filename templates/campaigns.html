@@ -1,0 +1,8 @@
+$def with (campaign_names)
+<h1>
+    API Crawling Campaigns
+</h1>
+<p>
+    $for campaign_name in campaign_names:
+    <li><a href='campaign/$campaign_name'>$campaign_name</a></li>
+</p>

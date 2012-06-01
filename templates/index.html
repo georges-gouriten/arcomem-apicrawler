@@ -1,0 +1,40 @@
+$def with (load)
+<h1>
+    ARCOMEM API Crawler RESTful Interface
+</h1>
+
+<h2> Navigation </h2>
+<li>
+    <a href='new_crawls'>New crawls</a>
+</li>
+<li>
+    <a href='campaigns'>Campaigns</a>
+</li>
+
+<h2> Current load </h2>
+<table>
+    <tr> 
+        <th>Platform</th>
+        <th># crawls in the queue</th>
+    </tr>
+    <tr> 
+        <td>facebook</td>
+        <td>$load[0]</td>
+    </tr>
+    <tr> 
+        <td>flickr</td>
+        <td>$load[1]</td>
+    </tr>
+    <tr> 
+        <td>google_plus</td>
+        <td>$load[2]</td>
+    </tr>
+    <tr> 
+        <td>twitter</td>
+        <td>$load[3]</td>
+    </tr>
+    <tr> 
+        <td>youtube</td>
+        <td>$load[4]</td>
+    </tr>
+</table>
