@@ -1,8 +1,15 @@
 import web
 from web import form
-import spiders
 import json
+import logging
 
+import spiders
+
+logging.basicConfig(filename='arcomem_apicrawler.log',\
+                    level=logging.DEBUG,
+                    format='[%(levelname)s][%(asctime)s]: %(message)s',\
+                    datefmt='%m/%d/%Y %H:%M:%S')
+logging.info('Starting ARCOMEM APICrawler')
 spiders_controller = spiders.SpidersController()
 render = web.template.render('templates/')
 urls = (
@@ -15,6 +22,7 @@ urls = (
 
 PLATFORMS = [ 'facebook', 'flickr', 'google_plus', 'twitter', 'youtube' ]
 
+
 class crawl:
     def POST(self):
         str_data = web.data()
@@ -26,8 +34,10 @@ class crawl:
         return json.dumps(crawl_ids)
     
     def GET(self, crawl_id):
-        crawl = spiders_controller.id2obj(int(crawl_id)) 
-        crawl_data = {  "id": crawl._id,
+        crawl = spiders_controller.object_from_id(crawl_id) 
+        crawl_data = {}
+        if crawl:
+            crawl_data = {  "id": crawl._id,
                     "campaign": crawl.campaign.name,
                     "platform": crawl.platform.name,
                     "strategy": crawl.strategy,
@@ -38,13 +48,17 @@ class crawl:
                     "requests_count": crawl.requests_count }
         return crawl_data
 
+
 class campaigns:
     load = spiders_controller.get_load()
+
     def GET(self):
         campaign_names = spiders_controller.get_campaign_names()
         return json.dumps(campaign_names)
 
+
 class campaign:
+
     def GET(self, campaign_name):
         campaign = spiders_controller.get_campaign(campaign_name)
         campaign_data = {}
@@ -53,6 +67,10 @@ class campaign:
                                 "start_date": str(campaign.start_date),
                                 "statistics": campaign.statistics.stats }
         return json.dumps(campaign_data)
+
+    def DEL(self, campaign_name):
+        spiders_controller.del_campaign(campaign_name)
+
 
 class crawls:
     def GET(self, campaign_name):

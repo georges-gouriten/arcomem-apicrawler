@@ -8,6 +8,7 @@ from threading import Thread
 import sys
 import os
 import httplib
+import logging
 
 import warc
 
@@ -41,8 +42,8 @@ class ResponsesHandler:
         try:
             str(result['id'])
         except Exception:
-            print 'ERROR in processing the output: %s has no ID' %\
-                (result)
+            logging.error('Processing the output: %s has no ID' %\
+                (result))
             return None
         init_outlinks = set()
         result_outlinks = list(self.extract_outlinks(result, init_outlinks))
@@ -115,7 +116,7 @@ class WARCManager:
     def open_warc(self):
         warc_name = "apicrawler.%s.warc.gz" % (
             datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S_%f'))
-        print "Writing warc file: %s" % warc_name
+        logging.info("Writing warc file: %s" % warc_name)
         self.warc_file = warc.open("output/warcs/" + warc_name, "w")
         # WARCInfo record
         warc_header = warc.WARCHeader({
@@ -219,7 +220,7 @@ class OutlinksManager:
                         headers=heritrix_headers)
         response = heritrix_connection.getresponse()
         if response.status <> 200:
-            print 'ERROR: Connexion with Heritrix broken'
+            logging.warning('Connexion with Heritrix broken')
         heritrix_connection.close()
         del outlinks_bulk[:]
 
@@ -250,7 +251,7 @@ class TripleManager:
             json.dump
             if chunk:
                 string_chunk = self.stringify_triples(chunk)
-                print 'sending %s' % string_chunk[0:75]
+                logging.info('Sending %s' % string_chunk[0:75])
             prefix = 'apicrawler.socket-success.'
             try:
                 self.initiate_socket_connection()

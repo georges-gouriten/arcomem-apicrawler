@@ -1,4 +1,5 @@
 import json 
+import logging
 
 def jpath(item, path):
     for element in path.split('.'):
@@ -6,8 +7,7 @@ def jpath(item, path):
             item = item[element]
         except LookupError:
             #TODO: logging
-            print "WARN: Could not find the right results with jpath"
-            print '%s %s' % (item, path)
+            logging.warning("Jpath invalid: %s %s" % (item, path))
             return None
     return item
 

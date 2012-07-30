@@ -6,6 +6,7 @@ import string
 import urlparse
 import time
 import weakref
+import logging
 
 import output
 import apiblender
@@ -15,7 +16,6 @@ This module contains the different Spiders
 """
 
 PLATFORMS = [ 'facebook', 'flickr', 'google_plus', 'twitter', 'youtube' ]
-
 
 class SpidersController:
 
@@ -29,13 +29,19 @@ class SpidersController:
             self.platforms.append(platform)
         self._id2obj_dict = weakref.WeakValueDictionary()
 
-    def remember(self, obj):
+    def remember_object(self, obj):
         oid = id(obj)
         self._id2obj_dict[oid] = obj
         return oid
 
-    def id2obj(self, oid):
-        return self._id2obj_dict[oid]
+    def object_from_id(self, oid):
+        _object = None
+        try: 
+            oid = int(oid)
+            _object = self._id2obj_dict[oid]
+        except Exception:
+            pass
+        return _object
 
     def get_campaign(self, campaign_name):
         campaign = False
@@ -54,7 +60,6 @@ class SpidersController:
         return platform
 
     def add_crawl(self, crawl):
-        print crawl
         [campaign_name, platform_name, strategy, parameters] = crawl
         campaign = self.get_campaign(campaign_name)
         if not campaign:
@@ -62,11 +67,20 @@ class SpidersController:
             self.campaigns.append(campaign)
         platform = self.get_platform(platform_name)
         crawl = Crawl(campaign, platform, strategy, parameters)
-        crawl_id = self.remember(crawl)
+        crawl_id = self.remember_object(crawl)
         crawl.set_id(crawl_id)
         platform.add_crawl_to_queue(crawl)
         self.crawls.append(crawl)
         return crawl_id
+
+    def del_campaign(self, campaign_name):
+        campaign = self.get_campaign(campaign_name)
+        for i, _campaign in enumerate(self.campaigns):
+            if str(campaign.name) == str(_campaign.name):
+                del self.campaigns[i]
+        del _campaign
+        del campaign
+
 
     def get_campaign_names(self):
         return [campaign.name for campaign in self.campaigns]
@@ -274,15 +288,25 @@ class FacebookPages(Spider):
                 break
             self.requests_count += 1
             try:
-                next_page_str = response['paging']['next']
+                next_page_str = response['prepared_content']['paging']['next']
             except Exception:
                 break
-            query_str = urlparse.urlparse(next_page_str)
-            query_dict = urlparse.parse_qs(query_str)
+            query_str = urlparse.urlparse(next_page_str).query
+            query_dict = None
+            try:
+                query_dict = urlparse.parse_qs(query_str)
+            except Exception as e:
+                logging.error('URL parsing: %s, error: %s' % (query_str,e))
             until = None
+            print query_dict
             for item in query_dict:
-                if str(item[0]) == 'until':
-                    until = item[1]
+                if str(item) == 'until':
+                    try:
+                        until = int(query_dict[item][0])
+                    except Exception as e:
+                        logging.error('Facebook until field: %s, error: %s' % \
+                                (until, e))
+
             success = 300 > response["headers"]['status'] >= 200 and until
             if success:
                 self.handle_response(response)
@@ -406,12 +430,12 @@ class TwitterPagesAndUsers(Spider):
                 users.add(twitt['from_user'])
         blender.load_server("twitter-generic")
         for user in users:
-            print("User Name: %s" % user)
+            logging.info("User Name: %s" % user)
             blender.load_interaction('followers')
             blender.set_url_params({"screen_name": user})
             response = blender.blend()
-            print("\tFollowers: %s" % response['prepared_content'])
+            logging.info("\tFollowers: %s" % response['prepared_content'])
             blender.load_interaction('followees')
             blender.set_url_params({"screen_name": user})
             response = blender.blend()
-            print("\tFollowees: %s" % response['prepared_content'])
+            logging.info("\tFollowees: %s" % response['prepared_content'])
