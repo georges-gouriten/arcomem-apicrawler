@@ -30,8 +30,7 @@ Requirements
 * apiblender/
     * See https://github.com/netiru/apiblender
 * web.py
-    * ```sudo apt-get install python-webpy``` or see
-      http://warc.readthedocs.org/
+    * ```sudo apt-get install python-webpy```
 * warc.py 
     * ```pip install warc``` or see http://warc.readthedocs.org/
 
