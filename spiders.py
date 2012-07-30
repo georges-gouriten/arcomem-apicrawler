@@ -3,6 +3,9 @@ import utils
 import Queue
 from threading import Thread
 import string
+import urlparse
+import time
+import weakref
 
 import output
 import apiblender
@@ -24,6 +27,15 @@ class SpidersController:
         for PLATFORM in PLATFORMS:
             platform = Platform(PLATFORM, self.responses_handler)
             self.platforms.append(platform)
+        self._id2obj_dict = weakref.WeakValueDictionary()
+
+    def remember(self, obj):
+        oid = id(obj)
+        self._id2obj_dict[oid] = obj
+        return oid
+
+    def id2obj(self, oid):
+        return self._id2obj_dict[oid]
 
     def get_campaign(self, campaign_name):
         campaign = False
@@ -41,15 +53,20 @@ class SpidersController:
                 break
         return platform
 
-    def new_crawl(self, campaign_name, platform_name, keywords):
+    def add_crawl(self, crawl):
+        print crawl
+        [campaign_name, platform_name, strategy, parameters] = crawl
         campaign = self.get_campaign(campaign_name)
         if not campaign:
             campaign = Campaign(campaign_name)
             self.campaigns.append(campaign)
         platform = self.get_platform(platform_name)
-        crawl = Crawl(campaign, platform, keywords)
+        crawl = Crawl(campaign, platform, strategy, parameters)
+        crawl_id = self.remember(crawl)
+        crawl.set_id(crawl_id)
         platform.add_crawl_to_queue(crawl)
         self.crawls.append(crawl)
+        return crawl_id
 
     def get_campaign_names(self):
         return [campaign.name for campaign in self.campaigns]
@@ -102,23 +119,24 @@ STATUSES = { -1: 'tmp', 0: 'waiting', 1: 'running', 2: 'finished' }
 
 class CampaignStatistics:
     
+    # This part could be reshaped
     def __init__(self):
         self.stats = []
         for i in range(0, len(PLATFORMS)):
             row = []
-            for j in range(0,3):
+            for j in range(0, 4):
                 row.append(0)
             self.stats.append(row)
 
-
     def change_status(self, status_before, status_now, platform_name):
-        print self.stats
-        print status_now
         i = PLATFORMS.index(platform_name)
-        print i
         if status_before > -1:
             self.stats[i][status_before] -= 1
         self.stats[i][status_now] += 1
+
+    def increase_requests(self, num_req, platform_name):
+        i = PLATFORMS.index(platform_name)
+        self.stats[i][3] += num_req
 
     def str(self):
         i = 0
@@ -133,41 +151,52 @@ class CampaignStatistics:
 
 class Crawl:
 
-    def __init__(self, campaign, platform, keywords):
+    def __init__(self, campaign, platform, strategy, parameters):
         self.platform = platform
         self.campaign = campaign
-        self.keywords = keywords
+        self.strategy = strategy
+        self.parameters = parameters
         self.start_date = datetime.now()
-        # Statut: 0 is waiting, 1 is running, 2 is finished
+        # Status: 0 is waiting, 1 is running, 2 is finished
         self.status = 0
         self.campaign.statistics.change_status(-1, 0, self.platform.name) 
         self.end_date = False
+        self.requests_count = 0
+        self._id = False
 
     def run(self, blender, responses_handler):
         self.status = 1
         self.campaign.statistics.change_status(0, 1, self.platform.name) 
+        # Strategy is not used at the moment (only search strategy)
+        keywords = self.parameters
         if str(self.platform.name) == 'twitter':
             new_spider = TwitterPages(responses_handler)
-            new_spider.set_keywords(self.keywords)
-        if str(self.platform.name) == 'facebook':
+            new_spider.set_keywords(keywords)
+        elif str(self.platform.name) == 'facebook':
             new_spider = FacebookPages(responses_handler)
-            new_spider.set_keywords(self.keywords)
-        if str(self.platform.name) == 'google_plus':
+            new_spider.set_keywords(keywords)
+        elif str(self.platform.name) == 'google_plus':
             new_spider = GoogleplusPages(responses_handler)
-            new_spider.set_keywords(self.keywords)
-        if str(self.platform.name) == 'flickr':
+            new_spider.set_keywords(keywords)
+        elif str(self.platform.name) == 'flickr':
             new_spider = FlickrPages(responses_handler)
-            new_spider.set_keywords(self.keywords)
-        if str(self.platform.name) == 'youtube':
+            new_spider.set_keywords(keywords)
+        elif str(self.platform.name) == 'youtube':
             new_spider = YoutubePages(responses_handler)
-            new_spider.set_keywords(self.keywords)
+            new_spider.set_keywords(keywords)
         else:
             #TODO
             return
         new_spider.run(blender)
         self.end_date = datetime.now()
         self.status = 2
+        self.requests_count = new_spider.requests_count
+        self.campaign.statistics.increase_requests(self.requests_count,\
+                self.platform.name)
         self.campaign.statistics.change_status(1, 2, self.platform.name) 
+
+    def set_id(self, _id):
+        self._id = _id
 
     def str(self):
         if self.status == 2:
@@ -187,7 +216,7 @@ class Spider:
 
     def __init__(self, responses_handler):
         self.beginning_date = datetime.now()
-        self.request_count = 0
+        self.requests_count = 0
         self.responses_handler = responses_handler
 
     def handle_response(self, response):
@@ -211,10 +240,11 @@ class TwitterPages(Spider):
         p = 0
         while success: 
             p += 1
-            # TODO: error handling, keyword
             blender.set_url_params({"q": self.keywords_str, "page": p})
             response = blender.blend()
-            self.request_count += 1
+            if not response:
+                break
+            self.requests_count += 1
             success = ( 300 > response["headers"]['status'] >= 200 )
             if success:
                 self.handle_response(response)
@@ -233,14 +263,27 @@ class FacebookPages(Spider):
         blender.load_server("facebook")
         blender.load_interaction("search")
         success = True
-        p = 0
+        until = None 
         while success: 
-            p += 1
             # TODO: error handling, keyword
-            blender.set_url_params({"q": self.keywords_str, "page": p})
+            blender.set_url_params({"q": self.keywords_str})
+            if until:
+                blender.set_url_params({"until": until})
             response = blender.blend()
-            self.request_count += 1
-            success = ( 300 > response["headers"]['status'] >= 200 )
+            if not response:
+                break
+            self.requests_count += 1
+            try:
+                next_page_str = response['paging']['next']
+            except Exception:
+                break
+            query_str = urlparse.urlparse(next_page_str)
+            query_dict = urlparse.parse_qs(query_str)
+            until = None
+            for item in query_dict:
+                if str(item[0]) == 'until':
+                    until = item[1]
+            success = 300 > response["headers"]['status'] >= 200 and until
             if success:
                 self.handle_response(response)
 
@@ -265,11 +308,13 @@ class GoogleplusPages(Spider):
             if pageToken:
                 blender.set_url_params({"pageToken": pageToken})
             response = blender.blend()
+            if not response:
+                break
             try:
                 pageToken = response['prepared_content']['nextPageToken']
             except Exception:
                 _continue = False
-            self.request_count += 1
+            self.requests_count += 1
             success = ( 300 > response["headers"]['status'] >= 200 )
             if success:
                 self.handle_response(response)
@@ -297,7 +342,9 @@ class YoutubePages(Spider):
             blender.set_url_params({"q": self.keywords_str, "start-index":\
                 (p-1)*50+1})
             response = blender.blend()
-            self.request_count += 1
+            if not response:
+                break
+            self.requests_count += 1
             success = ( 300 > response["headers"]['status'] >= 200 )
             if success:
                 self.handle_response(response)
@@ -323,10 +370,12 @@ class FlickrPages(Spider):
             # TODO: error handling, keyword
             blender.set_url_params({"tags": self.keywords_str, "page": p})
             response = blender.blend()
+            if not response:
+                break
             # Manual definition of maximum page
             if p == 1:
                 pages = response['prepared_content']['photos']['pages']
-            self.request_count += 1
+            self.requests_count += 1
             success = ( 300 > response["headers"]['status'] >= 200 )
             if success:
                 self.handle_response(response)
@@ -351,6 +400,8 @@ class TwitterPagesAndUsers(Spider):
             p += 1
             blender.set_url_params({"q": self.keyword, "page": p})
             response = blender.blend()
+            if not response:
+                break
             for twitt in response['prepared_content']['results']:
                 users.add(twitt['from_user'])
         blender.load_server("twitter-generic")
@@ -364,5 +415,3 @@ class TwitterPagesAndUsers(Spider):
             blender.set_url_params({"screen_name": user})
             response = blender.blend()
             print("\tFollowees: %s" % response['prepared_content'])
-            
-

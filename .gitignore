@@ -4,6 +4,8 @@ test*
 .hgignore
 apiblender
 todo
+clean.sh
+output/**/*
 
 
 # Defaults from git
