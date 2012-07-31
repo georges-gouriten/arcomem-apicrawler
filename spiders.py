@@ -298,7 +298,6 @@ class FacebookPages(Spider):
             except Exception as e:
                 logging.error('URL parsing: %s, error: %s' % (query_str,e))
             until = None
-            print query_dict
             for item in query_dict:
                 if str(item) == 'until':
                     try:

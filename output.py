@@ -79,8 +79,8 @@ class ResponsesHandler:
                 str_result = str(_result) 
             except Exception:
                 return outlinks
-            for item in re.findall('https?://[^ \\"]+', str_result, re.I):
-                outlinks.add(item)
+            if re.match('https?://', str_result, re.I):
+                outlinks.add(str(_result))
         return outlinks
 
     def clean_outlinks(self, outlinks):
