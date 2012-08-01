@@ -28,17 +28,19 @@ class ResponsesHandler:
         self.outlinks_handler = OutlinksManager()
 
     def add_response(self, response):
-        # Extracting result or results
+        # The whole response goes as a WARC
+        self.warcs_handler.add(response)
+        # Triples and outlinks are processed for each item of the response 
         result = self.manual_path(response)
-        triple_prefix = response['triple_prefix']
+        blender_config = response['blender_config']
         headers = response['headers']
         if type(result) is list:
             for _result in result:
-                self.add_result(_result, triple_prefix, headers)
+                self.add_result(_result, blender_config, headers)
         else:
-            self.add_result(result, triple_prefix, headers)
+            self.add_result(result, blender_config, headers)
 
-    def add_result(self, result, triple_prefix, headers):
+    def add_result(self, result, blender_config, headers):
         try:
             str(result['id'])
         except Exception:
@@ -49,9 +51,7 @@ class ResponsesHandler:
         result_outlinks = list(self.extract_outlinks(result, init_outlinks))
         _clean_outlinks = self.clean_outlinks(result_outlinks)
         self.outlinks_handler.add(_clean_outlinks)
-        self.warcs_handler.add( result, _clean_outlinks, \
-                                triple_prefix, headers)
-        self.triples_handler.add(result, triple_prefix)
+        self.triples_handler.add(result, blender_config, _clean_outlinks)
 
     def manual_path(self, response):
         result = response
@@ -90,6 +90,7 @@ class ResponsesHandler:
             outlink = outlink.replace('\\','')
         return outlinks
 
+
 class WARCManager:
 
     def __init__(self):
@@ -104,14 +105,13 @@ class WARCManager:
     def warcs_daemon(self): 
         while True:
             try:
-                (result, outlinks, triple_prefix, headers) = \
-                        self.results_queue.get(False)
-                self.write_warc(result, outlinks, triple_prefix, headers)
+                response = self.results_queue.get(False)
+                self.write_warc(response)
             except Queue.Empty:
                 continue
 
-    def add(self, result, outlinks, triple_prefix, headers):
-        self.results_queue.put((result, outlinks, triple_prefix, headers))
+    def add(self, response):
+        self.results_queue.put(response)
 
     def open_warc(self):
         warc_name = "apicrawler.%s.warc.gz" % (
@@ -129,45 +129,47 @@ class WARCManager:
         self.warc_file.write_record(warc_record)
         self.warcinfo_id = warc_header['WARC-RECORD-ID']
 
-    def write_warc(self, result, outlinks, triple_prefix, headers):
-        try:
-            str(result['id'])
-        except Exception:
-            # TODO save problematic results
-            return None 
-        # Response record
-        target_uri = "http://%s%s" % (triple_prefix, result['id']) 
-        warc_header = warc.WARCHeader({
-            "WARC-Type": "response",
-            "Content-Type": "application/json",
-            "WARC-Warcinfo-ID": self.warcinfo_id,
-            "WARC-Target-URI": target_uri,
-            "WARC-Identified-Payload-Type": "application/json"},\
-            defaults = True )
-        payload = json.dumps({ 'data': result, 'headers': headers })
-        fake_http_header = (" 200 OK\r\nContent-length: %d\r\n\r\n" %
-                            len(payload))
-        warc_payload = fake_http_header + payload
-        warc_record = warc.WARCRecord(warc_header, warc_payload)
-        self.warc_file.write_record(warc_record)
-        # Metadata record
-        concurrent_to = warc_header['WARC-RECORD-ID']
-        warc_header = warc.WARCHeader({
-            "WARC-Type": "metadata",
-            "Content-Type": "application/warc-fields",
-            "WARC-Warcinfo-ID": self.warcinfo_id,
-            "WARC-Target-URI": target_uri,
-            "WARC-Concurrent-To": concurrent_to,
-            "WARC-Identified-Payload-Type": "application/json"},\
-            defaults = True )
-        warc_payload = json.dumps({"parent": str(target_uri),
-                                   "outlinks": outlinks})
-        warc_record = warc.WARCRecord(warc_header, warc_payload)
-        self.warc_file.write_record(warc_record)
-        if self.warc_file.tell() > 500 * 1024 * 1024:
-            self.close_warc()
-            self.open_warc()
-
+    #TODO
+    def write_warc(self, response):
+        pass
+#        try:
+#            str(result['id'])
+#        except Exception:
+#            # TODO save problematic results
+#            return None 
+#        # Response record
+#        target_uri = "http://%s%s" % (result['id']) 
+#        warc_header = warc.WARCHeader({
+#            "WARC-Type": "response",
+#            "Content-Type": "application/json",
+#            "WARC-Warcinfo-ID": self.warcinfo_id,
+#            "WARC-Target-URI": target_uri,
+#            "WARC-Identified-Payload-Type": "application/json"},\
+#            defaults = True )
+#        payload = json.dumps({ 'data': result, 'headers': headers })
+#        fake_http_header = (" 200 OK\r\nContent-length: %d\r\n\r\n" %
+#                            len(payload))
+#        warc_payload = fake_http_header + payload
+#        warc_record = warc.WARCRecord(warc_header, warc_payload)
+#        self.warc_file.write_record(warc_record)
+#        # Metadata record
+#        concurrent_to = warc_header['WARC-RECORD-ID']
+#        warc_header = warc.WARCHeader({
+#            "WARC-Type": "metadata",
+#            "Content-Type": "application/warc-fields",
+#            "WARC-Warcinfo-ID": self.warcinfo_id,
+#            "WARC-Target-URI": target_uri,
+#            "WARC-Concurrent-To": concurrent_to,
+#            "WARC-Identified-Payload-Type": "application/json"},\
+#            defaults = True )
+#        warc_payload = json.dumps({"parent": str(target_uri),
+#                                   "outlinks": outlinks})
+#        warc_record = warc.WARCRecord(warc_header, warc_payload)
+#        self.warc_file.write_record(warc_record)
+#        if self.warc_file.tell() > 500 * 1024 * 1024:
+#            self.close_warc()
+#            self.open_warc()
+#
     def close_warc(self):
         self.warc_file.close()
         # TODO use a temporary file name in open and rename here
@@ -238,6 +240,7 @@ class TripleManager:
         t.start() 
 
     def triples_daemon(self): 
+        # TODO replace time sleep with queue waiting
         while True:
             time.sleep(10)
             chunk = []
@@ -249,9 +252,10 @@ class TripleManager:
                     break
                 chunk.append(triple)
             json.dump
-            if chunk:
-                string_chunk = self.stringify_triples(chunk)
-                logging.info('Sending %s' % string_chunk[0:75])
+            if not chunk:
+                continue
+            string_chunk = self.stringify_triples(chunk)
+            logging.info('Sending %s' % string_chunk[0:75])
             prefix = 'apicrawler.socket-success.'
             try:
                 self.initiate_socket_connection()
@@ -272,41 +276,112 @@ class TripleManager:
                     _f.write(json.dumps(triple) + '\n')
 
    
-    def add(self, result, triple_prefix):
-        triples = self.make_triples(result, triple_prefix)
+    def add(self, result, blender_config, outlinks):
+        try:
+            triples = self.make_triples(result, blender_config, outlinks)
+        except KeyError as e:
+            logging.error(  'Weird data format for %s, error: %s' % \
+                            (result,e))
         for triple in triples:
             self._triples.put(triple)
 
-    def make_triples(self, result, triple_prefix):
+    def make_triples(self, result, blender_config, outlinks):
         triples = []
-        try:
-            str(result['id'])
-        except Exception:
+        api = '' 
+        post = ['' for i in range(8)]
+        from_user_subject = ''
+        to_user_subjects = []
+        users = []
+        from_user = ['' for i in range(7)]
+        #flickr
+        if  (blender_config['server'], blender_config['interaction']) \
+            == ('flickr', 'search'):
+            api = 'flickr'
+            #post
+            post[0] = 'flickr/post/'  + str(result['id'])
+            post[1] = result['id']
+            post[2] = 'http://farm%s.staticflickr.com/%s/%s_%s.jpg' % \
+                    (result['farm'], result['server'], result['id'], \
+                    result['secret'])
+            post[3] = result['title']
+            #user
+            from_user[0] = 'flickr/user/' + str(result['owner'])
+            from_user_subject = from_user[0]
+            from_user[1] = result['owner']
+        #twitter
+        if  (blender_config['server'], blender_config['interaction']) \
+            == ('twitter-search', 'search'):
+            api = 'twitter'
+            #post
+            post[0] = 'twitter/post/'  + str(result['id'])
+            post[1] = result['id']
+            post[2] = 'http://twitter.com/%s/status/%s' % \
+                    (result['from_user'], result['id'])
+            post[4] = result['text']
+            post[5] = result['iso_language_code']
+            post[6] = result['created_at']
+            post[7] = result.get('geo', '')
+            #from user
+            from_user[0] = 'twitter/user/' + str(result['from_user_id'])
+            from_user[1] = result['from_user_id']
+            from_user[2] = 'http://twitter.com/%s/' % (result['from_user'])
+            from_user[3] = result['from_user_name']
+            from_user[4] = result['from_user']
+            from_user[5] = result['profile_image_url']
+            #to users
+            for item in result['entities'].get('user_mentions', [{}]):
+                if not item:
+                    continue
+                to_user = ['' for i in range(7)]
+                to_user[0] = 'twitter/user/' + str(item['id'])
+                to_user_subjects.append(to_user[0]) 
+                to_user[1] = item['id']
+                to_user[2] = 'http://twitter.com/%s/' % (item['screen_name'])
+                to_user[3] = item['name']
+                to_user[4] = item['screen_name']
+                users.append( to_user )
+        users.append(from_user)
+        from_user_subject = from_user[0]
+        #Post
+        if not post[0]:
             return []
-        subject = triple_prefix + str(result['id'])
-        predicates_objects = self.flatten(result, '')
-        for predicate_object in predicates_objects:
-           triples.append([ subject, 
-                            predicate_object[0],
-                            predicate_object[1] ])
+        triples.extend([
+                [ post[0], 'api', api ],
+                [ post[0], 'id', post[1] ],
+                [ post[0], 'url', post[2] ],
+                [ post[0], 'title', post[3] ],
+                [ post[0], 'content', post[4] ],
+                [ post[0], 'language', post[5] ],
+                [ post[0], 'publication_date', post[6] ],
+                [ post[0], 'location', post[7] ] ])
+        # Outlinks
+        for outlink in outlinks:
+            triples.append([ post[0], 'outlink', outlink ])
+        # Post from user / to users
+        triples.append([ post[0], 'from_user', from_user_subject ])
+        for to_user_subject in to_user_subjects:
+            triples.append( [ post[0], 'to_user', to_user_subject ])
+        # Users
+        for user in users:
+            if not user[0]:
+                continue
+            triples.extend([
+                [ user[0], 'api', api ],
+                [ user[0], 'id', user[1] ],
+                [ user[0], 'url', user[2] ],
+                [ user[0], 'name', user[3] ],
+                [ user[0], 'nickname', user[4] ],
+                [ user[0], 'picture_url', user[5] ],
+                [ user[0], 'location', user[6] ] ])
+        # Inverse relations, user has post / is mentionned
+        triples.append([from_user_subject, 'has_post', post[0]])
+        for to_user_subject in to_user_subjects:
+            triples.append( [ to_user_subject, 'is_mentioned_by', post[0] ])
+        triples = [triple for triple in triples if triple[2]]
+        # TODO: harmonize publication_date (raw pub date et harm pub date)
+        # TODO: harmonize location (raw location et harm location)
+        # TODO: harmonize language (raw location et harm location)
         return triples
-
-    def flatten(self, item, predicate):
-        #[[predicate, object]]
-        po = list()
-        if type(item) is dict:
-            for key in item.keys():
-                new_predicate = predicate + key + '_'
-                new_item = item[key]
-                sub_po = self.flatten(new_item, new_predicate)
-                po.extend(sub_po)
-        elif type(item) is list:
-            for new_item in item:
-                sub_po = self.flatten(new_item, predicate)
-                po.extend(sub_po)
-        else:
-            po.append([predicate.strip('_'), item])
-        return po
 
     def initiate_socket_connection(self, host='localhost', port=19898):
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -330,113 +405,3 @@ class TripleManager:
         string_triples = "\\EOT".join(string_triples)
         string_triples += "\\EOL"
         return string_triples
-
-#               #Sending results to the triple store stringTriples =
-#               utils.stringifyTriples(triples) count = len(triples) print "Sending
-#               %s triples to the Triple Store" % (count) print "Example: %.200s" %
-#               (triples[15]) print "" time.sleep(6)    os.system('clear')
-#               #utils.toTripleStore(stringTriples)
-#
-#       def parseResults(self, results):
-#
-#               #Creating metaData attached to the result set requestMeta =
-#               self.apikb["service"]["host"] + self.currentRequest["path"] dateMeta
-#               = datetime.now().isoformat(' ') metaData = {"request": requestMeta,
-#               "date": dateMeta} 
-#
-#               parsedResults = [] i = 0 for result in results: #Content
-#               standardization standardContent = {} for k, v in
-#               self.apikb["requests"][self.currentRequest["name"]]["responseMeta"]["standards"].iteritems():
-#               if v: try: value = utils.getFromDict(result,v)
-#               standardContent.update({k: value}) except Exception as e: continue
-#               #Saving results, filtering out posts with empty standard text if
-#               self.currentRequest["name"] == "search": if "post.content" not in
-#               standardContent.keys(): continue        
-#                       
-#                       #Extracting links outLinks =
-#                       utils.extractLinks(standardContent["post.content"]) if outLinks:
-#                       standardContent.update({"post.outLinks": outLinks})
-#                       standardContent.update({"user.platform":
-#                       self.spiderMeta["platform"], "post.platform":
-#                       self.spiderMeta["platform"]}) metaData.update({ "counter": i })
-#                       parsedResults.append({"originalContent": result,
-#                       "standardContent": \ standardContent, "metaData": metaData}) i
-#                       += 1
-#
-#               return parsedResults def extractLinks(myString): #string extractor
-#               links = re.findall("https?://[^ ]+", myString, re.I) return links 
-#
-#    def makeTriples(parsedResults): triples = [] for parsedResult in
-#    parsedResults: #Ids generation userId = "User%s%s" %
-#    (parsedResult["standardContent"]["user.platform"],\
-        #    parsedResult["standardContent"]["user.id"]) if
-        #    parsedResult["standardContent"]["post.id"]: postId =
-        #    "Post%s%s" %
-        #    (parsedResult["standardContent"]["post.platform"],\
-#                    parsedResult["standardContent"]["post.id"])
-#                    triples.append([postId, "user", userId])
-#
-#               #Building triples for k,v in
-#               parsedResult["standardContent"].iteritems(): triple = ['','',''] if
-#               k.split('.')[0] == "post": triple[0] = postId else: triple[0] =
-#               userId triple[1] = k.split('.')[1] triple[2] = v
-#               triples.append(triple)
-#
-#        return triples
-#
-#def stringifyTriples(triples):
-#       stringTriples = [] for triple in triples: stringTriple = [] for item in
-#       triple: item = json.dumps(item)
-#       stringTriple.append(item.replace('"','')) stringTriple =
-#       "\\-".join(stringTriple) stringTriples.append(stringTriple)
-#       stringTriples = "\\,".join(stringTriples) return stringTriples
-#
-#
-#JAVA_JAR_PATH = "lib/rdfstore/target/h2rdf-0.1-SNAPSHOT.jar" #MAIN_CLASS =
-#"gr.ntua.h2rdf.client.SimplifiedAPI" #COMMAND_TYPE = "put" #SERVER_ADDRESS =
-#"ia200124" #DATABASE = "apicrawler-test" #import subprocess #import time
-#
-#def toTripleStore(stringTriples):
-#       subprocess.call(["java", "-cp", JAVA_JAR_PATH, MAIN_CLASS, COMMAND_TYPE,
-#       SERVER_ADDRESS, DATABASE, stringTriples])
-#
-#
-#postMappingDict = { "post.id": "url", "user.description": "content",\
-#               "post.content": "content", "post.platform": "mimeType",
-#               "post.outLinks": "outLinks" } 
-#
-#userMappingDict = { "user.id": "url", "user.platform": "mimeType",
-#"user.name": "content" }
-#
-#def prepareForHbase(parsedResults):
-#       hbaseReadyResults = []  for parsedResult in parsedResults: #Only results
-#       with outLinks are sent if "post.outLinks" in
-#       parsedResult["standardContent"].keys(): userHbaseReadyResult = {}
-#       postHbaseReadyResult = {} for key, value in
-#       parsedResult["standardContent"].iteritems(): if key in
-#       userMappingDict.keys():
-#       userHbaseReadyResult.update({userMappingDict[key]: value}) if key in
-#       postMappingDict.keys():
-#       postHbaseReadyResult.update({postMappingDict[key]: value})
-#       userHbaseReadyResult["mimeType"] = "text/x-User" +
-#       userHbaseReadyResult["mimeType"] postHbaseReadyResult["mimeType"] =
-#       "text/x-Post" + postHbaseReadyResult["mimeType"] #
-#       #hbaseReadyResults.append(userHbaseReadyResult) #
-#       hbaseReadyResults.append(postHbaseReadyResult) return hbaseReadyResults
-#
-## from thrift.transport.TSocket import TSocket ## from
-#thrift.transport.TTransport import TBufferedTransport ## from
-#thrift.protocol import TBinaryProtocol ## from hbase import Hbase 
-#
-##TABLE = 'test'
-#
-## def toHbase(hbaseReadyResults): ##   transport =
-#TBufferedTransport(TSocket('localhost', 9090)) ##      transport.open() ##
-#protocol = TBinaryProtocol.TBinaryProtocol(transport) ##       client =
-#Hbase.Client(protocol) ##      print(client.getTableNames())   ##      for
-#hbaseReadyResult in hbaseReadyResults: ##              if "outLinks" in
-#    hbaseReadyResult.keys(): ##                        myMutation = Hbase.Mutation(0,
-#        'myColumn', 'myValue') ##                      client.mutateRow('test','myRow',
-#        myMutation) 
-#
-#

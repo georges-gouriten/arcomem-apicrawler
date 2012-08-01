@@ -184,19 +184,19 @@ class Crawl:
         # Strategy is not used at the moment (only search strategy)
         keywords = self.parameters
         if str(self.platform.name) == 'twitter':
-            new_spider = TwitterPages(responses_handler)
+            new_spider = TwitterSearch(responses_handler)
             new_spider.set_keywords(keywords)
         elif str(self.platform.name) == 'facebook':
-            new_spider = FacebookPages(responses_handler)
+            new_spider = FacebookSearch(responses_handler)
             new_spider.set_keywords(keywords)
         elif str(self.platform.name) == 'google_plus':
-            new_spider = GoogleplusPages(responses_handler)
+            new_spider = GoogleplusSearch(responses_handler)
             new_spider.set_keywords(keywords)
         elif str(self.platform.name) == 'flickr':
-            new_spider = FlickrPages(responses_handler)
+            new_spider = FlickrSearch(responses_handler)
             new_spider.set_keywords(keywords)
         elif str(self.platform.name) == 'youtube':
-            new_spider = YoutubePages(responses_handler)
+            new_spider = YoutubeSearch(responses_handler)
             new_spider.set_keywords(keywords)
         else:
             #TODO
@@ -234,15 +234,13 @@ class Spider:
         self.responses_handler = responses_handler
 
     def handle_response(self, response):
-        response.update({ "triple_prefix": self.TRIPLE_PREFIX })
         self.responses_handler.add_response(response)
  
 
-class TwitterPages(Spider):
+class TwitterSearch(Spider):
 
     def __init__(self, responses_handler):
         Spider.__init__(self, responses_handler)
-        self.TRIPLE_PREFIX = "twitter/post/"
 
     def set_keywords(self, keywords):
         self.keywords_str = string.join(keywords,' ')
@@ -264,11 +262,10 @@ class TwitterPages(Spider):
                 self.handle_response(response)
 
 
-class FacebookPages(Spider):
+class FacebookSearch(Spider):
 
     def __init__(self, responses_handler):
         Spider.__init__(self, responses_handler)
-        self.TRIPLE_PREFIX = "facebook/post/"
 
     def set_keywords(self, keywords):
         self.keywords_str = string.join(keywords,' ')
@@ -311,11 +308,10 @@ class FacebookPages(Spider):
                 self.handle_response(response)
 
 
-class GoogleplusPages(Spider):
+class GoogleplusSearch(Spider):
 
     def __init__(self, responses_handler):
         Spider.__init__(self, responses_handler)
-        self.TRIPLE_PREFIX = "google_plus/post/"
 
     def set_keywords(self, keywords):
         self.keywords_str = string.join(keywords,' ')
@@ -345,11 +341,10 @@ class GoogleplusPages(Spider):
                 _continue = False
 
 
-class YoutubePages(Spider):
+class YoutubeSearch(Spider):
 
     def __init__(self, responses_handler):
         Spider.__init__(self, responses_handler)
-        self.TRIPLE_PREFIX = "youtube/post/"
 
     def set_keywords(self, keywords):
         self.keywords_str = string.join(keywords,' ')
@@ -373,11 +368,11 @@ class YoutubePages(Spider):
                 self.handle_response(response)
 
 
-class FlickrPages(Spider):
+class FlickrSearch(Spider):
 
     def __init__(self, responses_handler):
         Spider.__init__(self, responses_handler)
-        self.TRIPLE_PREFIX = "flickr/post/"
+        self.TRIPLE_PREFIX = "flickr/"
 
     def set_keywords(self, keywords):
         self.keywords_str = string.join(keywords,' ')
@@ -404,11 +399,10 @@ class FlickrPages(Spider):
                 self.handle_response(response)
 
 
-class TwitterPagesAndUsers(Spider):
+class TwitterSearchAndUsers(Spider):
 
     def __init__(self, responses_handler):
         Spider.__init__(self, results_handler)
-        self.TRIPLE_PREFIX = "twitter/post/"
 
     def set_keywords(self, keyword):
         self.keywords = keywords
