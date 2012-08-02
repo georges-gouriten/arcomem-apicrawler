@@ -49,9 +49,10 @@ class ResponsesHandler:
             return None
         init_outlinks = set()
         result_outlinks = list(self.extract_outlinks(result, init_outlinks))
-        _clean_outlinks = self.clean_outlinks(result_outlinks)
-        self.outlinks_handler.add(_clean_outlinks)
-        self.triples_handler.add(result, blender_config, _clean_outlinks)
+        _clean_outlinks = set(self.clean_outlinks(result_outlinks))
+        all_outlinks = \
+            self.triples_handler.add(result, blender_config, _clean_outlinks)
+        self.outlinks_handler.add(all_outlinks)
 
     def manual_path(self, response):
         result = response
@@ -192,7 +193,7 @@ class OutlinksManager:
     def outlinks_daemon(self):
         outlinks = []
         while True:
-            time.sleep(0.05)
+            #time.sleep(0.05)
             outlinks_at_a_time = 10
             while len(outlinks) < outlinks_at_a_time:
                 try:
@@ -277,13 +278,17 @@ class TripleManager:
 
    
     def add(self, result, blender_config, outlinks):
+        triples = []
+        new_outlinks = set()
         try:
-            triples = self.make_triples(result, blender_config, outlinks)
-        except KeyError as e:
+            triples, new_outlinks = \
+                    self.make_triples(result, blender_config, outlinks)
+        except Exception as e:
             logging.error(  'Weird data format for %s, error: %s' % \
                             (result,e))
         for triple in triples:
             self._triples.put(triple)
+        return outlinks.union(new_outlinks)
 
     def make_triples(self, result, blender_config, outlinks):
         triples = []
@@ -295,19 +300,19 @@ class TripleManager:
         from_user = ['' for i in range(7)]
         #flickr
         if  (blender_config['server'], blender_config['interaction']) \
-            == ('flickr', 'search'):
+            == ('flickr', 'photos_search'):
             api = 'flickr'
             #post
             post[0] = 'flickr/post/'  + str(result['id'])
             post[1] = result['id']
-            post[2] = 'http://farm%s.staticflickr.com/%s/%s_%s.jpg' % \
-                    (result['farm'], result['server'], result['id'], \
-                    result['secret'])
+            post[2] = 'http://www.flickr.com/%s/%s' % \
+                    (result['owner'], result['id'])
             post[3] = result['title']
             #user
             from_user[0] = 'flickr/user/' + str(result['owner'])
             from_user_subject = from_user[0]
             from_user[1] = result['owner']
+            from_user[2] = 'http://www.flickr.com/%s' % (from_user[1])
         #twitter
         if  (blender_config['server'], blender_config['interaction']) \
             == ('twitter-search', 'search'):
@@ -329,17 +334,94 @@ class TripleManager:
             from_user[4] = result['from_user']
             from_user[5] = result['profile_image_url']
             #to users
-            for item in result['entities'].get('user_mentions', [{}]):
+            entities = result.get('entities', {})
+            for item in entities.get('user_mentions', [{}]):
                 if not item:
                     continue
                 to_user = ['' for i in range(7)]
                 to_user[0] = 'twitter/user/' + str(item['id'])
                 to_user_subjects.append(to_user[0]) 
                 to_user[1] = item['id']
-                to_user[2] = 'http://twitter.com/%s/' % (item['screen_name'])
+                to_user[2] = 'http://twitter.com/%s' % (item['screen_name'])
                 to_user[3] = item['name']
                 to_user[4] = item['screen_name']
                 users.append( to_user )
+        if  (blender_config['server'], blender_config['interaction']) \
+            == ('facebook', 'search'):
+            api = 'facebook'
+            #post
+            post[0] = 'facebook/post/'  + str(result['id'])
+            post[1] = result['id']
+            post[2] = 'http://www.facebook.com/%s' % \
+                    (result['id'])
+            if result.get('name',''):
+                post[3] = result['name']
+            if result.get('message',''):
+                post[4] = result['message']
+            if result.get('caption',''):
+                post[4] = result['caption']
+            post[6] = result['updated_time']
+            #from user
+            from_user[0] = 'facebook/user/' + str(result['from']['id'])
+            from_user[1] = result['from']['id']
+            from_user[2] = 'http://www.facebook.com/%s' % \
+                    (result['from']['id'])
+            from_user[3] = result['from']['name']
+            #to users
+            if 'likes' in result.keys():
+                for item in result['likes']['data']:
+                    to_user = ['' for i in range(7)]
+                    to_user[0] = 'facebook/user/' + str(item['id'])
+                    to_user_subjects.append(to_user[0]) 
+                    to_user[1] = item['id']
+                    to_user[2] = 'http://www.facebook.com/%s' % (item['id'])
+                    to_user[3] = item['name']
+                    users.append(to_user)
+            if 'to' in result.keys():
+                for item in result['to']['data']:
+                    to_user = ['' for i in range(7)]
+                    to_user[0] = 'facebook/user/' + str(item['id'])
+                    to_user_subjects.append(to_user[0]) 
+                    to_user[1] = item['id']
+                    to_user[2] = 'http://www.facebook.com/%s' % (item['id'])
+                    to_user[3] = item['name']
+                    users.append(to_user)
+        if  (blender_config['server'], blender_config['interaction']) \
+            == ('google_plus', 'activities_search'):
+            api = 'google_plus'
+            #post
+            post[0] = 'google_plus/post/'  + str(result['id'])
+            post[1] = result['id']
+            post[2] = result['url']
+            post[3] = result['title']
+            post[4] = result['object']['content']
+            post[6] = result['published']
+            #from user
+            from_user[0] = 'google_plus/user/' + str(result['actor']['id'])
+            from_user[1] = result['actor']['id']
+            from_user[2] = result['actor']['url'] 
+            from_user[3] = result['actor']['displayName']
+            if 'image' in result['actor'].keys():
+                from_user[5] = result['actor']['image']['url']
+            #to users
+            #Not available at the moment
+        if  (blender_config['server'], blender_config['interaction']) \
+            == ('youtube', 'search'):
+            api = 'youtube'
+            #post
+            post[1] = result['id']['$t'].split('/')[-1]
+            post[0] = 'youtube/post/'  + str(post[1])
+            post[2] = 'http://www.youtube.com/watch?v=' + str(post[1])
+            post[3] = result['title']['$t']
+            post[4] = result['content']['$t']
+            post[6] = result['published']['$t']
+            #from user
+            from_user[1] = result['author'][0]['name']['$t']
+            from_user[0] = 'youtube/user/' + str(from_user[1])
+            from_user[2] = 'http://www.youtube.com/' + str(from_user[1])
+            from_user[4] = result['author'][0]['name']['$t']
+            #to users
+            #Not available at the moment
         users.append(from_user)
         from_user_subject = from_user[0]
         #Post
@@ -347,6 +429,7 @@ class TripleManager:
             return []
         triples.extend([
                 [ post[0], 'api', api ],
+                [ post[0], 'type', 'post' ],
                 [ post[0], 'id', post[1] ],
                 [ post[0], 'url', post[2] ],
                 [ post[0], 'title', post[3] ],
@@ -367,6 +450,7 @@ class TripleManager:
                 continue
             triples.extend([
                 [ user[0], 'api', api ],
+                [ user[0], 'type', 'user' ],
                 [ user[0], 'id', user[1] ],
                 [ user[0], 'url', user[2] ],
                 [ user[0], 'name', user[3] ],
@@ -378,10 +462,12 @@ class TripleManager:
         for to_user_subject in to_user_subjects:
             triples.append( [ to_user_subject, 'is_mentioned_by', post[0] ])
         triples = [triple for triple in triples if triple[2]]
+        new_outlinks = set([triple[2] for triple in triples if \
+                        str(triple[1]) == 'url'])
         # TODO: harmonize publication_date (raw pub date et harm pub date)
         # TODO: harmonize location (raw location et harm location)
         # TODO: harmonize language (raw location et harm location)
-        return triples
+        return triples, new_outlinks
 
     def initiate_socket_connection(self, host='localhost', port=19898):
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
