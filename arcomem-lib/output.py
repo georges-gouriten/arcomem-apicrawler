@@ -12,8 +12,8 @@ import logging
 
 import warc
 
-RESULTS = {
-    'twitter-search.search': 'prepared_content.results',
+RESPONSE_CONTENTS = {
+    'twitter-search.search': 'results',
     'youtube.search': 'feed.entry',
     'flickr.photos_search': 'photos.photo',
     'google_plus.activities_search': 'items',
@@ -21,7 +21,7 @@ RESULTS = {
 }
 
 class ResponsesHandler: 
-
+    """ Handles blender responses """
     def __init__(self): 
         self.triples_handler = TripleManager()
         self.warcs_handler = WARCManager()
@@ -29,59 +29,68 @@ class ResponsesHandler:
 
     def add_response(self, response):
         # The whole response goes as a WARC
-        self.warcs_handler.add(response)
+        self.warcs_handler.add_response(response)
         # Triples and outlinks are processed for each item of the response 
-        result = self.manual_path(response)
+        # Manually finds the content in the response
+        blender_content = response['loaded_content']
+        response_content = self.find_response_content(blender_content)
         blender_config = response['blender_config']
         headers = response['headers']
-        if type(result) is list:
-            for _result in result:
-                self.add_result(_result, blender_config, headers)
+        # From response content to content item (e.g., from a set of tweets
+        # to a unique tweet) 
+        if type(response_content) is list:
+            for content_item in response_content:
+                self.add_content_item(  content_item, 
+                                        blender_config, 
+                                        headers )
         else:
-            self.add_result(result, blender_config, headers)
+            self.add_content_item(response_content, blender_config, headers)
 
-    def add_result(self, result, blender_config, headers):
+    def add_content_item(self, content_item, blender_config, headers):
         try:
-            str(result['id'])
+            str(content_item['id'])
         except Exception:
             logging.error('Processing the output: %s has no ID' %\
-                (result))
+                (content_item))
             return None
         init_outlinks = set()
-        result_outlinks = list(self.extract_outlinks(result, init_outlinks))
-        _clean_outlinks = set(self.clean_outlinks(result_outlinks))
+        content_item_outlinks = list(self.extract_outlinks( content_item, 
+                                                            init_outlinks))
+        _clean_outlinks = set(self.clean_outlinks(content_item_outlinks))
         all_outlinks = \
-            self.triples_handler.add(result, blender_config, _clean_outlinks)
-        self.outlinks_handler.add(all_outlinks)
+            self.triples_handler.add_content_item(   content_item, 
+                                                blender_config, 
+                                                _clean_outlinks )
+        self.outlinks_handler.add_outlinks(all_outlinks)
 
-    def manual_path(self, response):
-        result = response
-        for item in RESULTS:
+    def find_response_content(self, response):
+        response_content = response
+        for item in RESPONSE_CONTENTS:
             found = False
-            for key in RESULTS[item].split('.'):
+            for key in RESPONSE_CONTENTS[item].split('.'):
                 try:
-                    result = result[key]
+                    response_content = response_content[key]
                     found = True
                 except Exception:
                     found = False
                     break
             if found:
-                return result
+                return response_content
 
-    def extract_outlinks(self, _result, outlinks):
-        if type(_result) is dict:
-            for key in _result.keys():
-                self.extract_outlinks(_result[key], outlinks)
-        elif type(_result) is list:
-            for item in _result:
+    def extract_outlinks(self, _content, outlinks):
+        if type(_content) is dict:
+            for key in _content.keys():
+                self.extract_outlinks(_content[key], outlinks)
+        elif type(_content) is list:
+            for item in _content:
                 self.extract_outlinks(item, outlinks)
         else:
             try:
-                str_result = str(_result) 
+                str_content = str(_content) 
             except Exception:
                 return outlinks
-            if re.match('https?://', str_result, re.I):
-                outlinks.add(str(_result))
+            if re.match('https?://', str_content, re.I):
+                outlinks.add(str(_content))
         return outlinks
 
     def clean_outlinks(self, outlinks):
@@ -93,10 +102,9 @@ class ResponsesHandler:
 
 
 class WARCManager:
-
     def __init__(self):
         self.open_warc()
-        self.results_queue = Queue.Queue()
+        self.responses_queue = Queue.Queue()
         self.start_daemon()
 
     def start_daemon(self):
@@ -106,13 +114,13 @@ class WARCManager:
     def warcs_daemon(self): 
         while True:
             try:
-                response = self.results_queue.get(False)
+                response = self.responses_queue.get(False)
                 self.write_warc(response)
             except Queue.Empty:
                 continue
 
-    def add(self, response):
-        self.results_queue.put(response)
+    def add_response(self, response):
+        self.responses_queue.put(response)
 
     def open_warc(self):
         warc_name = "apicrawler.%s.warc.gz" % (
@@ -130,30 +138,27 @@ class WARCManager:
         self.warc_file.write_record(warc_record)
         self.warcinfo_id = warc_header['WARC-RECORD-ID']
 
-    #TODO
     def write_warc(self, response):
         pass
-#        try:
-#            str(result['id'])
-#        except Exception:
-#            # TODO save problematic results
-#            return None 
-#        # Response record
-#        target_uri = "http://%s%s" % (result['id']) 
-#        warc_header = warc.WARCHeader({
-#            "WARC-Type": "response",
-#            "Content-Type": "application/json",
-#            "WARC-Warcinfo-ID": self.warcinfo_id,
-#            "WARC-Target-URI": target_uri,
-#            "WARC-Identified-Payload-Type": "application/json"},\
-#            defaults = True )
-#        payload = json.dumps({ 'data': result, 'headers': headers })
-#        fake_http_header = (" 200 OK\r\nContent-length: %d\r\n\r\n" %
-#                            len(payload))
-#        warc_payload = fake_http_header + payload
-#        warc_record = warc.WARCRecord(warc_header, warc_payload)
-#        self.warc_file.write_record(warc_record)
-#        # Metadata record
+        # Response record
+        target_uri = response['blender_config']['request_url'] 
+        warc_header = warc.WARCHeader(
+            {   
+                "WARC-Type": "response",
+                # Only json at the moment
+                "Content-Type": "application/json",
+                "WARC-Warcinfo-ID": self.warcinfo_id,
+                "WARC-Target-URI": target_uri,
+                "WARC-Identified-Payload-Type": "application/json"  
+            },
+            defaults = True )
+        payload = response['raw_content']
+        fake_http_header = (" 200 OK\r\nContent-length: %d\r\n\r\n" %
+                            len(payload))
+        warc_payload = fake_http_header + payload
+        warc_record = warc.WARCRecord(warc_header, warc_payload)
+        self.warc_file.write_record(warc_record)
+#        # Metadata record (currently not used)
 #        concurrent_to = warc_header['WARC-RECORD-ID']
 #        warc_header = warc.WARCHeader({
 #            "WARC-Type": "metadata",
@@ -167,17 +172,15 @@ class WARCManager:
 #                                   "outlinks": outlinks})
 #        warc_record = warc.WARCRecord(warc_header, warc_payload)
 #        self.warc_file.write_record(warc_record)
-#        if self.warc_file.tell() > 500 * 1024 * 1024:
-#            self.close_warc()
-#            self.open_warc()
-#
+        if self.warc_file.tell() > 500 * 1024 * 1024:
+            self.close_warc()
+            self.open_warc()
+
     def close_warc(self):
         self.warc_file.close()
-        # TODO use a temporary file name in open and rename here
 
 
 class OutlinksManager:
-    
     def __init__(self):
         self.outlinks_queue = Queue.Queue()
         self.start_daemon()
@@ -186,7 +189,7 @@ class OutlinksManager:
         t = Thread(target=self.outlinks_daemon)
         t.start()
 
-    def add(self, outlinks):
+    def add_outlinks(self, outlinks):
         for outlink in outlinks:
             self.outlinks_queue.put(outlink)
 
@@ -229,7 +232,6 @@ class OutlinksManager:
 
 
 class TripleManager:
-    
     def __init__(self):
         self._triples = Queue.Queue()
         self.s = None
@@ -241,16 +243,11 @@ class TripleManager:
         t.start() 
 
     def triples_daemon(self): 
-        # TODO replace time sleep with queue waiting
         while True:
-            time.sleep(10)
             chunk = []
-            quantity=1000000
+            quantity=100000
             for i in range(0, quantity):
-                try:
-                    triple = self._triples.get(False)
-                except Queue.Empty:
-                    break
+                triple = self._triples.get(True)
                 chunk.append(triple)
             json.dump
             if not chunk:
@@ -259,9 +256,11 @@ class TripleManager:
             logging.info('Sending %s' % string_chunk[0:75])
             prefix = 'apicrawler.socket-success.'
             try:
-                self.initiate_socket_connection()
-                self.s.send(string_chunk)
-                self.close_socket()
+#               # Deprecated triple store socket communication
+#               self.initiate_socket_connection()
+#               self.s.send(string_chunk)
+#               self.close_socket()
+                raise NotImplementedError, 'waiting for Nikos' 
             except Exception:
                 prefix = 'apicrawler.socket-failure.'
             try:
@@ -277,20 +276,20 @@ class TripleManager:
                     _f.write(json.dumps(triple) + '\n')
 
    
-    def add(self, result, blender_config, outlinks):
+    def add_content_item(self, content_item, blender_config, outlinks):
         triples = []
         new_outlinks = set()
         try:
             triples, new_outlinks = \
-                    self.make_triples(result, blender_config, outlinks)
+                    self.make_triples(content_item, blender_config, outlinks)
         except Exception as e:
             logging.error(  'Weird data format for %s, error: %s' % \
-                            (result,e))
+                            (content_item,e))
         for triple in triples:
             self._triples.put(triple)
         return outlinks.union(new_outlinks)
 
-    def make_triples(self, result, blender_config, outlinks):
+    def make_triples(self, content_item, blender_config, outlinks):
         triples = []
         api = '' 
         post = ['' for i in range(8)]
@@ -303,38 +302,39 @@ class TripleManager:
             == ('flickr', 'photos_search'):
             api = 'flickr'
             #post
-            post[0] = 'flickr/post/'  + str(result['id'])
-            post[1] = result['id']
+            post[0] = 'flickr/post/'  + str(content_item['id'])
+            post[1] = content_item['id']
             post[2] = 'http://www.flickr.com/%s/%s' % \
-                    (result['owner'], result['id'])
-            post[3] = result['title']
+                    (content_item['owner'], content_item['id'])
+            post[3] = content_item['title']
             #user
-            from_user[0] = 'flickr/user/' + str(result['owner'])
+            from_user[0] = 'flickr/user/' + str(content_item['owner'])
             from_user_subject = from_user[0]
-            from_user[1] = result['owner']
+            from_user[1] = content_item['owner']
             from_user[2] = 'http://www.flickr.com/%s' % (from_user[1])
         #twitter
         if  (blender_config['server'], blender_config['interaction']) \
             == ('twitter-search', 'search'):
             api = 'twitter'
             #post
-            post[0] = 'twitter/post/'  + str(result['id'])
-            post[1] = result['id']
+            post[0] = 'twitter/post/'  + str(content_item['id'])
+            post[1] = content_item['id']
             post[2] = 'http://twitter.com/%s/status/%s' % \
-                    (result['from_user'], result['id'])
-            post[4] = result['text']
-            post[5] = result['iso_language_code']
-            post[6] = result['created_at']
-            post[7] = result.get('geo', '')
+                    (content_item['from_user'], content_item['id'])
+            post[4] = content_item['text']
+            post[5] = content_item['iso_language_code']
+            post[6] = content_item['created_at']
+            post[7] = content_item.get('geo', '')
             #from user
-            from_user[0] = 'twitter/user/' + str(result['from_user_id'])
-            from_user[1] = result['from_user_id']
-            from_user[2] = 'http://twitter.com/%s/' % (result['from_user'])
-            from_user[3] = result['from_user_name']
-            from_user[4] = result['from_user']
-            from_user[5] = result['profile_image_url']
+            from_user[0] = 'twitter/user/' + str(content_item['from_user_id'])
+            from_user[1] = content_item['from_user_id']
+            from_user[2] =  'http://twitter.com/%s/' % \
+                            (content_item['from_user'])
+            from_user[3] = content_item['from_user_name']
+            from_user[4] = content_item['from_user']
+            from_user[5] = content_item['profile_image_url']
             #to users
-            entities = result.get('entities', {})
+            entities = content_item.get('entities', {})
             for item in entities.get('user_mentions', [{}]):
                 if not item:
                     continue
@@ -350,26 +350,26 @@ class TripleManager:
             == ('facebook', 'search'):
             api = 'facebook'
             #post
-            post[0] = 'facebook/post/'  + str(result['id'])
-            post[1] = result['id']
+            post[0] = 'facebook/post/'  + str(content_item['id'])
+            post[1] = content_item['id']
             post[2] = 'http://www.facebook.com/%s' % \
-                    (result['id'])
-            if result.get('name',''):
-                post[3] = result['name']
-            if result.get('message',''):
-                post[4] = result['message']
-            if result.get('caption',''):
-                post[4] = result['caption']
-            post[6] = result['updated_time']
+                    (content_item['id'])
+            if content_item.get('name',''):
+                post[3] = content_item['name']
+            if content_item.get('message',''):
+                post[4] = content_item['message']
+            if content_item.get('caption',''):
+                post[4] = content_item['caption']
+            post[6] = content_item['updated_time']
             #from user
-            from_user[0] = 'facebook/user/' + str(result['from']['id'])
-            from_user[1] = result['from']['id']
+            from_user[0] = 'facebook/user/' + str(content_item['from']['id'])
+            from_user[1] = content_item['from']['id']
             from_user[2] = 'http://www.facebook.com/%s' % \
-                    (result['from']['id'])
-            from_user[3] = result['from']['name']
+                    (content_item['from']['id'])
+            from_user[3] = content_item['from']['name']
             #to users
-            if 'likes' in result.keys():
-                for item in result['likes']['data']:
+            if 'likes' in content_item.keys():
+                for item in content_item['likes']['data']:
                     to_user = ['' for i in range(7)]
                     to_user[0] = 'facebook/user/' + str(item['id'])
                     to_user_subjects.append(to_user[0]) 
@@ -377,8 +377,8 @@ class TripleManager:
                     to_user[2] = 'http://www.facebook.com/%s' % (item['id'])
                     to_user[3] = item['name']
                     users.append(to_user)
-            if 'to' in result.keys():
-                for item in result['to']['data']:
+            if 'to' in content_item.keys():
+                for item in content_item['to']['data']:
                     to_user = ['' for i in range(7)]
                     to_user[0] = 'facebook/user/' + str(item['id'])
                     to_user_subjects.append(to_user[0]) 
@@ -390,36 +390,37 @@ class TripleManager:
             == ('google_plus', 'activities_search'):
             api = 'google_plus'
             #post
-            post[0] = 'google_plus/post/'  + str(result['id'])
-            post[1] = result['id']
-            post[2] = result['url']
-            post[3] = result['title']
-            post[4] = result['object']['content']
-            post[6] = result['published']
+            post[0] = 'google_plus/post/'  + str(content_item['id'])
+            post[1] = content_item['id']
+            post[2] = content_item['url']
+            post[3] = content_item['title']
+            post[4] = content_item['object']['content']
+            post[6] = content_item['published']
             #from user
-            from_user[0] = 'google_plus/user/' + str(result['actor']['id'])
-            from_user[1] = result['actor']['id']
-            from_user[2] = result['actor']['url'] 
-            from_user[3] = result['actor']['displayName']
-            if 'image' in result['actor'].keys():
-                from_user[5] = result['actor']['image']['url']
+            from_user[0] =  'google_plus/user/' + \
+                            str(content_item['actor']['id'])
+            from_user[1] = content_item['actor']['id']
+            from_user[2] = content_item['actor']['url'] 
+            from_user[3] = content_item['actor']['displayName']
+            if 'image' in content_item['actor'].keys():
+                from_user[5] = content_item['actor']['image']['url']
             #to users
             #Not available at the moment
         if  (blender_config['server'], blender_config['interaction']) \
             == ('youtube', 'search'):
             api = 'youtube'
             #post
-            post[1] = result['id']['$t'].split('/')[-1]
+            post[1] = content_item['id']['$t'].split('/')[-1]
             post[0] = 'youtube/post/'  + str(post[1])
             post[2] = 'http://www.youtube.com/watch?v=' + str(post[1])
-            post[3] = result['title']['$t']
-            post[4] = result['content']['$t']
-            post[6] = result['published']['$t']
+            post[3] = content_item['title']['$t']
+            post[4] = content_item['content']['$t']
+            post[6] = content_item['published']['$t']
             #from user
-            from_user[1] = result['author'][0]['name']['$t']
+            from_user[1] = content_item['author'][0]['name']['$t']
             from_user[0] = 'youtube/user/' + str(from_user[1])
             from_user[2] = 'http://www.youtube.com/' + str(from_user[1])
-            from_user[4] = result['author'][0]['name']['$t']
+            from_user[4] = content_item['author'][0]['name']['$t']
             #to users
             #Not available at the moment
         users.append(from_user)

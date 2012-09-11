@@ -1,5 +1,4 @@
 from datetime import datetime
-import utils
 import Queue
 from threading import Thread
 import string
@@ -8,17 +7,18 @@ import time
 import weakref
 import logging
 
-import output
 import apiblender
+import utils
+import output
 
 """ 
-This module contains the different Spiders
+This module describes the different Spiders
 """
 
 PLATFORMS = [ 'facebook', 'flickr', 'google_plus', 'twitter', 'youtube' ]
 
 class SpidersController:
-
+    """ Controls the spiders execution """
     def __init__(self):
         self.responses_handler = output.ResponsesHandler()
         self.campaigns = []
@@ -27,6 +27,7 @@ class SpidersController:
         for PLATFORM in PLATFORMS:
             platform = Platform(PLATFORM, self.responses_handler)
             self.platforms.append(platform)
+        # Stores permanently some objects: the crawls
         self._id2obj_dict = weakref.WeakValueDictionary()
 
     def remember_object(self, obj):
@@ -97,7 +98,8 @@ class SpidersController:
 
 
 class Platform:
-
+    """ A platform corresponds to a service, e.g., a facebook platform for
+    the facebook API service """
     def __init__(self, name, responses_handler):
         self.name = name
         self.queue = Queue.Queue()
@@ -116,7 +118,7 @@ class Platform:
 
 
 class Campaign:
-
+    """ A campaign is a set of crawls """
     def __init__(self, name):
         self.name = name
         self.start_date = datetime.now()
@@ -132,8 +134,9 @@ STATUSES = { -1: 'tmp', 0: 'waiting', 1: 'running', 2: 'finished' }
 
 
 class CampaignStatistics:
-    
-    # This part could be reshaped
+    """ Statistics belonging to a campaign """
+    # TODO: This part could be reshaped, the stats array is not that
+    # convenient.
     def __init__(self):
         self.stats = []
         for i in range(0, len(PLATFORMS)):
@@ -164,7 +167,7 @@ class CampaignStatistics:
         return _string
 
 class Crawl:
-
+    """ A crawl is a set of request corresponding to a specific strategy """
     def __init__(self, campaign, platform, strategy, parameters):
         self.platform = platform
         self.campaign = campaign
@@ -227,7 +230,7 @@ class Crawl:
 
 
 class Spider: 
-
+    """ A spider executes a crawl """
     def __init__(self, responses_handler):
         self.beginning_date = datetime.now()
         self.requests_count = 0
@@ -237,33 +240,7 @@ class Spider:
         self.responses_handler.add_response(response)
  
 
-class TwitterSearch(Spider):
-
-    def __init__(self, responses_handler):
-        Spider.__init__(self, responses_handler)
-
-    def set_keywords(self, keywords):
-        self.keywords_str = string.join(keywords,' ')
-    
-    def run(self, blender):
-        blender.load_server("twitter-search")
-        blender.load_interaction("search")
-        success = True
-        p = 0
-        while success: 
-            p += 1
-            blender.set_url_params({"q": self.keywords_str, "page": p})
-            response = blender.blend()
-            if not response:
-                break
-            self.requests_count += 1
-            success = ( 300 > response["headers"]['status'] >= 200 )
-            if success:
-                self.handle_response(response)
-
-
 class FacebookSearch(Spider):
-
     def __init__(self, responses_handler):
         Spider.__init__(self, responses_handler)
 
@@ -308,8 +285,37 @@ class FacebookSearch(Spider):
                 self.handle_response(response)
 
 
-class GoogleplusSearch(Spider):
+class FlickrSearch(Spider):
+    def __init__(self, responses_handler):
+        Spider.__init__(self, responses_handler)
+        self.TRIPLE_PREFIX = "flickr/"
 
+    def set_keywords(self, keywords):
+        self.keywords_str = string.join(keywords,' ')
+    
+    def run(self, blender):
+        blender.load_server("flickr")
+        blender.load_interaction("photos_search")
+        success = True
+        p = 0
+        pages = 1 
+        while p < pages: 
+            p += 1
+            # TODO: error handling, keyword
+            blender.set_url_params({"tags": self.keywords_str, "page": p})
+            response = blender.blend()
+            if not response:
+                break
+            # Manual definition of maximum page
+            if p == 1:
+                pages = response['prepared_content']['photos']['pages']
+            self.requests_count += 1
+            success = ( 300 > response["headers"]['status'] >= 200 )
+            if success:
+                self.handle_response(response)
+
+
+class GoogleplusSearch(Spider):
     def __init__(self, responses_handler):
         Spider.__init__(self, responses_handler)
 
@@ -341,8 +347,30 @@ class GoogleplusSearch(Spider):
                 _continue = False
 
 
-class YoutubeSearch(Spider):
+class TwitterSearch(Spider):
+    def __init__(self, responses_handler):
+        Spider.__init__(self, responses_handler)
 
+    def set_keywords(self, keywords):
+        self.keywords_str = string.join(keywords,' ')
+    
+    def run(self, blender):
+        blender.load_server("twitter-search")
+        blender.load_interaction("search")
+        success = True
+        p = 0
+        while success: 
+            p += 1
+            blender.set_url_params({"q": self.keywords_str, "page": p})
+            response = blender.blend()
+            if not response:
+                break
+            self.requests_count += 1
+            success = ( 300 > response["headers"]['status'] >= 200 )
+            if success:
+                self.handle_response(response)
+
+class YoutubeSearch(Spider):
     def __init__(self, responses_handler):
         Spider.__init__(self, responses_handler)
 
@@ -356,7 +384,6 @@ class YoutubeSearch(Spider):
         p = 0
         while success: 
             p += 1
-            # TODO: error handling, keyword
             blender.set_url_params({"q": self.keywords_str, "start-index":\
                 (p-1)*50+1})
             response = blender.blend()
@@ -368,39 +395,8 @@ class YoutubeSearch(Spider):
                 self.handle_response(response)
 
 
-class FlickrSearch(Spider):
-
-    def __init__(self, responses_handler):
-        Spider.__init__(self, responses_handler)
-        self.TRIPLE_PREFIX = "flickr/"
-
-    def set_keywords(self, keywords):
-        self.keywords_str = string.join(keywords,' ')
-    
-    def run(self, blender):
-        blender.load_server("flickr")
-        blender.load_interaction("photos_search")
-        success = True
-        p = 0
-        pages = 1 
-        while p < pages: 
-            p += 1
-            # TODO: error handling, keyword
-            blender.set_url_params({"tags": self.keywords_str, "page": p})
-            response = blender.blend()
-            if not response:
-                break
-            # Manual definition of maximum page
-            if p == 1:
-                pages = response['prepared_content']['photos']['pages']
-            self.requests_count += 1
-            success = ( 300 > response["headers"]['status'] >= 200 )
-            if success:
-                self.handle_response(response)
-
-
 class TwitterSearchAndUsers(Spider):
-
+    """ Currently deprecated """
     def __init__(self, responses_handler):
         Spider.__init__(self, results_handler)
 

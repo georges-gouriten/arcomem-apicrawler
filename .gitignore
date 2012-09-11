@@ -1,12 +1,12 @@
 warcs/*
-test*
+tmp*
 .hg
 .hgignore
-apiblender
 todo
 clean.sh
-output/**/*
+apicrawler/output/**/*
 *.log
+deprecated_*
 
 
 # Defaults from git

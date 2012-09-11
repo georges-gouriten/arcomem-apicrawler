@@ -3,7 +3,7 @@ from web import form
 import json
 import logging
 
-import spiders
+from arcomem-lib import spiders
 
 logging.basicConfig(filename='arcomem_apicrawler.log',\
                     level=logging.DEBUG,
