@@ -1,11 +1,23 @@
-ARCOMEM API Crawler
-==================
+# ARCOMEM API Crawler
 
 ARCOMEM API Crawler: a crawler for the social Web controlled via a RESTful
 Web interface. Developed for the ARCOMEM project (http://arcomem.eu)
 
-License
--------
+
+## Requirements
+
+* python 2.7.1+
+* web.py, see http://webpy.org/
+* warc.py, see http://warc.readthedocs.org/
+* apiblender, see http://github.com/netiru/apiblender
+
+## How to use the API Crawler
+
+* Clone the project 
+* Execute ```python apicrawler.py```
+* Use the rest interface as described on the arcomem internal wiki
+
+## License
 
 Copyright (C) 2012  Georges GOURITEN (georges.gouriten-at-gmail-dot-com)
 
@@ -21,21 +33,3 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-
-Requirements
-------------
-
-* python 2.7.1+
-* apiblender/
-    * See https://github.com/netiru/apiblender
-* web.py
-    * ```sudo apt-get install python-webpy```
-* warc.py 
-    * ```pip install warc``` or see http://warc.readthedocs.org/
-
-Description
------------
-
-* ```python rest.py```
-* connect to http://localhost:8080
