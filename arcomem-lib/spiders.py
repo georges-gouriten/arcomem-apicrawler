@@ -262,7 +262,7 @@ class FacebookSearch(Spider):
                 break
             self.requests_count += 1
             try:
-                next_page_str = response['prepared_content']['paging']['next']
+                next_page_str = response['loaded_content']['paging']['next']
             except Exception:
                 break
             query_str = urlparse.urlparse(next_page_str).query
@@ -308,7 +308,7 @@ class FlickrSearch(Spider):
                 break
             # Manual definition of maximum page
             if p == 1:
-                pages = response['prepared_content']['photos']['pages']
+                pages = response['loaded_content']['photos']['pages']
             self.requests_count += 1
             success = ( 300 > response["headers"]['status'] >= 200 )
             if success:
@@ -336,7 +336,7 @@ class GoogleplusSearch(Spider):
             if not response:
                 break
             try:
-                pageToken = response['prepared_content']['nextPageToken']
+                pageToken = response['loaded_content']['nextPageToken']
             except Exception:
                 _continue = False
             self.requests_count += 1
@@ -415,7 +415,7 @@ class TwitterSearchAndUsers(Spider):
             response = blender.blend()
             if not response:
                 break
-            for twitt in response['prepared_content']['results']:
+            for twitt in response['loaded_content']['results']:
                 users.add(twitt['from_user'])
         blender.load_server("twitter-generic")
         for user in users:
@@ -423,8 +423,8 @@ class TwitterSearchAndUsers(Spider):
             blender.load_interaction('followers')
             blender.set_url_params({"screen_name": user})
             response = blender.blend()
-            logging.info("\tFollowers: %s" % response['prepared_content'])
+            logging.info("\tFollowers: %s" % response['loaded_content'])
             blender.load_interaction('followees')
             blender.set_url_params({"screen_name": user})
             response = blender.blend()
-            logging.info("\tFollowees: %s" % response['prepared_content'])
+            logging.info("\tFollowees: %s" % response['loaded_content'])
