@@ -20,6 +20,11 @@ RESPONSE_CONTENTS = {
     'facebook.search': 'data'
 }
 
+OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "output")
+TRIPLES_PATH = os.path.join(OUTPUT_PATH, 'triples')
+OUTLINKS_PATH = os.path.join(OUTPUT_PATH, 'outlinks')
+WARCS_PATH = os.path.join(OUTPUT_PATH, 'warcs')
+
 class ResponsesHandler: 
     """ Handles blender responses """
     def __init__(self): 
@@ -126,7 +131,7 @@ class WARCManager:
         warc_name = "apicrawler.%s.warc.gz" % (
             datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S_%f'))
         logging.info("Writing warc file: %s" % warc_name)
-        self.warc_file = warc.open("output/warcs/" + warc_name, "w")
+        self.warc_file = warc.open(os.path.join(WARCS_PATH, warc_name), "w")
         # WARCInfo record
         warc_header = warc.WARCHeader({
                         "WARC-Type": "warcinfo",
@@ -205,11 +210,12 @@ class OutlinksManager:
                     continue
             try:
                 self.send_outlinks(outlinks)
-                prefix = 'output/outlinks/success.'
+                prefix = 'success.'
             except Exception:
-                prefix = 'output/outlinks/failure.'
-            with open(prefix + 'outlinks.txt', 'a') as outlinks_file:
-                outlinks_file.write(json.dumps(outlinks) + '\n')
+                prefix = 'failure.'
+            outlinks_file = os.path.join(TRIPLES_PATH, prefix+'outlinks.txt') 
+            with open(outlinks_file, 'a') as _outlinks_file:
+                _outlinks_file.write(json.dumps(outlinks) + '\n')
             del outlinks[:]
 
     def send_outlinks(self, outlinks):
@@ -229,7 +235,6 @@ class OutlinksManager:
             logging.warning('Connexion with Heritrix broken')
         heritrix_connection.close()
         del outlinks_bulk[:]
-
 
 class TripleManager:
     def __init__(self):
@@ -263,15 +268,17 @@ class TripleManager:
                 raise NotImplementedError, 'waiting for Nikos' 
             except Exception:
                 prefix = 'apicrawler.socket-failure.'
+            triple_file = os.path.join( TRIPLES_PATH, 
+                                        prefix + self.current_filename)
             try:
-                size = os.path.getsize('output/triples/' + prefix + \
-                        self.current_filename)
-            except Exception:
+                size = os.path.getsize(triple_file)
+            except OSError:
                 size = 0
             if size > 500 * 1024 * 1024:
                 self.current_filename = str(datetime.datetime.now())+'.txt'
-            with open('output/triples/' + prefix + self.current_filename, 'a')\
-            as _f:
+                triple_file = os.path.join( TRIPLES_PATH, 
+                                            prefix + self.current_filename)
+            with open(triple_file, 'a') as _f:
                 for triple in chunk:
                     _f.write(json.dumps(triple) + '\n')
 

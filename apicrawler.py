@@ -3,25 +3,23 @@ from web import form
 import json
 import logging
 
-from arcomem-lib import spiders
+from arcomem_lib import spiders
 
-logging.basicConfig(filename='arcomem_apicrawler.log',\
-                    level=logging.DEBUG,
-                    format='[%(levelname)s][%(asctime)s]: %(message)s',\
-                    datefmt='%m/%d/%Y %H:%M:%S')
-logging.info('Starting ARCOMEM APICrawler')
-spiders_controller = spiders.SpidersController()
 render = web.template.render('templates/')
-urls = (
-          '/crawl/add', 'crawl',
-          '/crawl/([^/]+)/?', 'crawl',
-          '/campaigns?/?', 'campaigns',
-          '/campaign/([^/]+)/crawls/?', 'crawls',
-          '/campaign/([^/]+)/?', 'campaign',
-)
-
+spiders_controller = spiders.SpidersController()
 PLATFORMS = [ 'facebook', 'flickr', 'google_plus', 'twitter', 'youtube' ]
-
+urls = (
+              '/crawl/add', 'crawl',
+              '/crawl/([^/]+)/?', 'crawl',
+              '/campaigns?/?', 'campaigns',
+              '/campaign/([^/]+)/crawls/?', 'crawls',
+              '/campaign/([^/]+)/?', 'campaign',
+)
+logging.basicConfig(    filename='arcomem_apicrawler.log',
+                        level=logging.DEBUG,
+                        format='[%(levelname)s][%(asctime)s] %(message)s',
+                        datefmt='%m/%d/%Y %H:%M:%S' )
+logging.info('Starting ARCOMEM APICrawler')
 
 class crawl:
     def POST(self):
@@ -51,14 +49,12 @@ class crawl:
 
 class campaigns:
     load = spiders_controller.get_load()
-
     def GET(self):
         campaign_names = spiders_controller.get_campaign_names()
         return json.dumps(campaign_names)
 
 
 class campaign:
-
     def GET(self, campaign_name):
         campaign = spiders_controller.get_campaign(campaign_name)
         campaign_data = {}

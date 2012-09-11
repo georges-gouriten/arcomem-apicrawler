@@ -211,6 +211,7 @@ class Crawl:
         self.campaign.statistics.increase_requests(self.requests_count,\
                 self.platform.name)
         self.campaign.statistics.change_status(1, 2, self.platform.name) 
+        logging.info('Crawl completed \n Crawler info \n %s' % self.str())
 
     def set_id(self, _id):
         self._id = _id
@@ -225,7 +226,7 @@ class Crawl:
         return  "\n\t---" +\
                 "\n\t{0:20} {1}".format('Start date:', self.start_date) +\
                 "\n\t{0:20} {1}".format('Platform:', self.platform.name) +\
-                "\n\t{0:20} {1}".format('Keywords:', self.keywords) +\
+                "\n\t{0:20} {1}".format('Parameters:', self.parameters) +\
                 "\n\t{0:20} {1}".format('End date:', end_date)
 
 
@@ -304,16 +305,12 @@ class FlickrSearch(Spider):
             # TODO: error handling, keyword
             blender.set_url_params({"tags": self.keywords_str, "page": p})
             response = blender.blend()
-            if not response:
+            self.requests_count += 1
+            if not response['successful_interaction']:
                 break
             # Manual definition of maximum page
             if p == 1:
                 pages = response['loaded_content']['photos']['pages']
-            self.requests_count += 1
-            success = ( 300 > response["headers"]['status'] >= 200 )
-            if success:
-                self.handle_response(response)
-
 
 class GoogleplusSearch(Spider):
     def __init__(self, responses_handler):
