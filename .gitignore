@@ -6,6 +6,7 @@ todo
 clean.sh
 apicrawler/output/**/*
 *.log
+**/*.log
 deprecated_*
 
 

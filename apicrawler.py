@@ -2,12 +2,12 @@ import web
 from web import form
 import json
 import logging
+import logging.config 
 
 from arcomem_lib import spiders
 
+web.config.debug = False
 render = web.template.render('templates/')
-spiders_controller = spiders.SpidersController()
-PLATFORMS = [ 'facebook', 'flickr', 'google_plus', 'twitter', 'youtube' ]
 urls = (
               '/crawl/add', 'crawl',
               '/crawl/([^/]+)/?', 'crawl',
@@ -15,11 +15,13 @@ urls = (
               '/campaign/([^/]+)/crawls/?', 'crawls',
               '/campaign/([^/]+)/?', 'campaign',
 )
-logging.basicConfig(    filename='arcomem_apicrawler.log',
-                        level=logging.DEBUG,
-                        format='[%(levelname)s][%(asctime)s] %(message)s',
-                        datefmt='%m/%d/%Y %H:%M:%S' )
-logging.info('Starting ARCOMEM APICrawler')
+PLATFORMS = [ 'facebook', 'flickr', 'google_plus', 'twitter', 'youtube' ]
+
+# Let's get is started 
+logging.config.fileConfig('logging.conf')
+logger = logging.getLogger('apicrawler')
+logger.info('Starting ARCOMEM APICrawler')
+spiders_controller = spiders.SpidersController()
 
 class crawl:
     def POST(self):
@@ -84,6 +86,7 @@ class crawls:
                             "requests_count": crawl.requests_count }
             crawls_data.append(crawl_data)
         return json.dumps(crawls_data)
+
 
 if __name__ == '__main__' :
     app = web.application(urls, globals())

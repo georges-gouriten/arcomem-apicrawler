@@ -1,240 +1,13 @@
-import Queue
-import socket
-import json
-import time
-import datetime
-import re
-from threading import Thread
-import sys
-import os
-import httplib
 import logging
+import Queue
+from threading import Thread
+import datetime
+import os
+import json
 
-import warc
+import config
 
-RESPONSE_CONTENTS = {
-    'twitter-search.search': 'results',
-    'youtube.search': 'feed.entry',
-    'flickr.photos_search': 'photos.photo',
-    'google_plus.activities_search': 'items',
-    'facebook.search': 'data'
-}
-
-OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "output")
-TRIPLES_PATH = os.path.join(OUTPUT_PATH, 'triples')
-OUTLINKS_PATH = os.path.join(OUTPUT_PATH, 'outlinks')
-WARCS_PATH = os.path.join(OUTPUT_PATH, 'warcs')
-
-class ResponsesHandler: 
-    """ Handles blender responses """
-    def __init__(self): 
-        self.triples_handler = TripleManager()
-        self.warcs_handler = WARCManager()
-        self.outlinks_handler = OutlinksManager()
-
-    def add_response(self, response):
-        # The whole response goes as a WARC
-        self.warcs_handler.add_response(response)
-        # Triples and outlinks are processed for each item of the response 
-        # Manually finds the content in the response
-        blender_content = response['loaded_content']
-        response_content = self.find_response_content(blender_content)
-        blender_config = response['blender_config']
-        headers = response['headers']
-        # From response content to content item (e.g., from a set of tweets
-        # to a unique tweet) 
-        if type(response_content) is list:
-            for content_item in response_content:
-                self.add_content_item(  content_item, 
-                                        blender_config, 
-                                        headers )
-        else:
-            self.add_content_item(response_content, blender_config, headers)
-
-    def add_content_item(self, content_item, blender_config, headers):
-        try:
-            str(content_item['id'])
-        except Exception:
-            logging.error('Processing the output: %s has no ID' %\
-                (content_item))
-            return None
-        init_outlinks = set()
-        content_item_outlinks = list(self.extract_outlinks( content_item, 
-                                                            init_outlinks))
-        _clean_outlinks = set(self.clean_outlinks(content_item_outlinks))
-        all_outlinks = \
-            self.triples_handler.add_content_item(   content_item, 
-                                                blender_config, 
-                                                _clean_outlinks )
-        self.outlinks_handler.add_outlinks(all_outlinks)
-
-    def find_response_content(self, response):
-        response_content = response
-        for item in RESPONSE_CONTENTS:
-            found = False
-            for key in RESPONSE_CONTENTS[item].split('.'):
-                try:
-                    response_content = response_content[key]
-                    found = True
-                except Exception:
-                    found = False
-                    break
-            if found:
-                return response_content
-
-    def extract_outlinks(self, _content, outlinks):
-        if type(_content) is dict:
-            for key in _content.keys():
-                self.extract_outlinks(_content[key], outlinks)
-        elif type(_content) is list:
-            for item in _content:
-                self.extract_outlinks(item, outlinks)
-        else:
-            try:
-                str_content = str(_content) 
-            except Exception:
-                return outlinks
-            if re.match('https?://', str_content, re.I):
-                outlinks.add(str(_content))
-        return outlinks
-
-    def clean_outlinks(self, outlinks):
-        for outlink in outlinks:
-            outlink = outlink.replace("&quot;",'')
-            outlink = outlink.replace('"','')
-            outlink = outlink.replace('\\','')
-        return outlinks
-
-
-class WARCManager:
-    def __init__(self):
-        self.open_warc()
-        self.responses_queue = Queue.Queue()
-        self.start_daemon()
-
-    def start_daemon(self):
-        t = Thread(target=self.warcs_daemon)
-        t.start() 
-
-    def warcs_daemon(self): 
-        while True:
-            try:
-                response = self.responses_queue.get(False)
-                self.write_warc(response)
-            except Queue.Empty:
-                continue
-
-    def add_response(self, response):
-        self.responses_queue.put(response)
-
-    def open_warc(self):
-        warc_name = "apicrawler.%s.warc.gz" % (
-            datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S_%f'))
-        logging.info("Writing warc file: %s" % warc_name)
-        self.warc_file = warc.open(os.path.join(WARCS_PATH, warc_name), "w")
-        # WARCInfo record
-        warc_header = warc.WARCHeader({
-                        "WARC-Type": "warcinfo",
-                        "Content-Type": "application/warc-fields",
-                        "WARC-Filename": warc_name},\
-                        defaults = True)
-        warc_payload = 'software: apicrawler\nhostname: ia200127'
-        warc_record = warc.WARCRecord(warc_header, warc_payload)
-        self.warc_file.write_record(warc_record)
-        self.warcinfo_id = warc_header['WARC-RECORD-ID']
-
-    def write_warc(self, response):
-        pass
-        # Response record
-        target_uri = response['blender_config']['request_url'] 
-        warc_header = warc.WARCHeader(
-            {   
-                "WARC-Type": "response",
-                # Only json at the moment
-                "Content-Type": "application/json",
-                "WARC-Warcinfo-ID": self.warcinfo_id,
-                "WARC-Target-URI": target_uri,
-                "WARC-Identified-Payload-Type": "application/json"  
-            },
-            defaults = True )
-        payload = response['raw_content']
-        fake_http_header = (" 200 OK\r\nContent-length: %d\r\n\r\n" %
-                            len(payload))
-        warc_payload = fake_http_header + payload
-        warc_record = warc.WARCRecord(warc_header, warc_payload)
-        self.warc_file.write_record(warc_record)
-#        # Metadata record (currently not used)
-#        concurrent_to = warc_header['WARC-RECORD-ID']
-#        warc_header = warc.WARCHeader({
-#            "WARC-Type": "metadata",
-#            "Content-Type": "application/warc-fields",
-#            "WARC-Warcinfo-ID": self.warcinfo_id,
-#            "WARC-Target-URI": target_uri,
-#            "WARC-Concurrent-To": concurrent_to,
-#            "WARC-Identified-Payload-Type": "application/json"},\
-#            defaults = True )
-#        warc_payload = json.dumps({"parent": str(target_uri),
-#                                   "outlinks": outlinks})
-#        warc_record = warc.WARCRecord(warc_header, warc_payload)
-#        self.warc_file.write_record(warc_record)
-        if self.warc_file.tell() > 500 * 1024 * 1024:
-            self.close_warc()
-            self.open_warc()
-
-    def close_warc(self):
-        self.warc_file.close()
-
-
-class OutlinksManager:
-    def __init__(self):
-        self.outlinks_queue = Queue.Queue()
-        self.start_daemon()
-
-    def start_daemon(self):
-        t = Thread(target=self.outlinks_daemon)
-        t.start()
-
-    def add_outlinks(self, outlinks):
-        for outlink in outlinks:
-            self.outlinks_queue.put(outlink)
-
-    def outlinks_daemon(self):
-        outlinks = []
-        while True:
-            #time.sleep(0.05)
-            outlinks_at_a_time = 10
-            while len(outlinks) < outlinks_at_a_time:
-                try:
-                    outlinks.append(self.outlinks_queue.get(False))
-                except Queue.Empty:
-                    continue
-            try:
-                self.send_outlinks(outlinks)
-                prefix = 'success.'
-            except Exception:
-                prefix = 'failure.'
-            outlinks_file = os.path.join(TRIPLES_PATH, prefix+'outlinks.txt') 
-            with open(outlinks_file, 'a') as _outlinks_file:
-                _outlinks_file.write(json.dumps(outlinks) + '\n')
-            del outlinks[:]
-
-    def send_outlinks(self, outlinks):
-        heritrix_connection = httplib.HTTPConnection( \
-                'ia200127.eu.archive.org', 8080, timeout=0.1 )
-        heritrix_connection.connect()
-        outlinks_bulk = []
-        for outlink in outlinks:
-            outlinks_bulk.append({"url": outlink, "score": 1.0})
-        heritrix_headers = {    'Content-Type': 'text/json',
-                                'charset': 'utf-8'  }
-        heritrix_connection.request('POST', 'queue/update/', \
-                        body=json.dumps(outlinks_bulk), \
-                        headers=heritrix_headers)
-        response = heritrix_connection.getresponse()
-        if response.status <> 200:
-            logging.warning('Connexion with Heritrix broken')
-        heritrix_connection.close()
-        del outlinks_bulk[:]
+logger = logging.getLogger('triples')
 
 class TripleManager:
     def __init__(self):
@@ -258,17 +31,20 @@ class TripleManager:
             if not chunk:
                 continue
             string_chunk = self.stringify_triples(chunk)
-            logging.info('Sending %s' % string_chunk[0:75])
+            logger.info('Sending %s' % string_chunk[0:75])
             prefix = 'apicrawler.socket-success.'
             try:
-#               # Deprecated triple store socket communication
+#
+#               Deprecated triple store socket communication
+#
 #               self.initiate_socket_connection()
 #               self.s.send(string_chunk)
 #               self.close_socket()
+#
                 raise NotImplementedError, 'waiting for Nikos' 
             except Exception:
                 prefix = 'apicrawler.socket-failure.'
-            triple_file = os.path.join( TRIPLES_PATH, 
+            triple_file = os.path.join( config.triples_path, 
                                         prefix + self.current_filename)
             try:
                 size = os.path.getsize(triple_file)
@@ -276,7 +52,7 @@ class TripleManager:
                 size = 0
             if size > 500 * 1024 * 1024:
                 self.current_filename = str(datetime.datetime.now())+'.txt'
-                triple_file = os.path.join( TRIPLES_PATH, 
+                triple_file = os.path.join( config.triples_path, 
                                             prefix + self.current_filename)
             with open(triple_file, 'a') as _f:
                 for triple in chunk:
@@ -290,7 +66,7 @@ class TripleManager:
             triples, new_outlinks = \
                     self.make_triples(content_item, blender_config, outlinks)
         except Exception as e:
-            logging.error(  'Weird data format for %s, error: %s' % \
+            logger.error(  'Weird data format for %s, error: %s' % \
                             (content_item,e))
         for triple in triples:
             self._triples.put(triple)
@@ -477,12 +253,15 @@ class TripleManager:
         # TODO: harmonize language (raw location et harm location)
         return triples, new_outlinks
 
-    def initiate_socket_connection(self, host='localhost', port=19898):
-        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.s.connect((host, port))
-
-    def close_socket(self):
-        self.s.close()
+#
+#   Deprecated socket communication
+#
+#    def initiate_socket_connection(self, host='localhost', port=19898):
+#        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#        self.s.connect((host, port))
+#
+#    def close_socket(self):
+#        self.s.close()
 
     def stringify_triples(self, triples):
         string_triples = []

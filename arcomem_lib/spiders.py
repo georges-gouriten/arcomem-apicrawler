@@ -8,24 +8,26 @@ import weakref
 import logging
 
 import apiblender
+
+import config
 import utils
-import output
+import responses
 
 """ 
 This module describes the different Spiders
 """
 
-PLATFORMS = [ 'facebook', 'flickr', 'google_plus', 'twitter', 'youtube' ]
+logger = logging.getLogger('apicrawler')
 
 class SpidersController:
     """ Controls the spiders execution """
     def __init__(self):
-        self.responses_handler = output.ResponsesHandler()
+        self.responses_handler = responses.ResponsesHandler()
         self.campaigns = []
         self.platforms = []
         self.crawls = []
-        for PLATFORM in PLATFORMS:
-            platform = Platform(PLATFORM, self.responses_handler)
+        for platform_str in config.platforms:
+            platform = Platform(platform_str, self.responses_handler)
             self.platforms.append(platform)
         # Stores permanently some objects: the crawls
         self._id2obj_dict = weakref.WeakValueDictionary()
@@ -107,6 +109,7 @@ class Platform:
         self.blender =  apiblender.Blender()
         self.responses_handler = responses_handler
         self.thread.start()
+        self.logger = logging.getLogger(self.name)
 
     def platform_daemon(self):
         while True:
@@ -139,27 +142,27 @@ class CampaignStatistics:
     # convenient.
     def __init__(self):
         self.stats = []
-        for i in range(0, len(PLATFORMS)):
+        for i in range(0, len(config.platforms)):
             row = []
             for j in range(0, 4):
                 row.append(0)
             self.stats.append(row)
 
     def change_status(self, status_before, status_now, platform_name):
-        i = PLATFORMS.index(platform_name)
+        i = config.platforms.index(platform_name)
         if status_before > -1:
             self.stats[i][status_before] -= 1
         self.stats[i][status_now] += 1
 
     def increase_requests(self, num_req, platform_name):
-        i = PLATFORMS.index(platform_name)
+        i = config.platforms.index(platform_name)
         self.stats[i][3] += num_req
 
     def str(self):
         i = 0
         _string = ''
-        for PLATFORM in PLATFORMS:
-            _string += "---" + "\n{0:20}".format(PLATFORM) + \
+        for platform_str in config.platforms:
+            _string += "---" + "\n{0:20}".format(_platform) + \
                 "\n\t{0:20} {1}".format('Waiting:', stats[i][0])+\
                 "\n\t{0:20} {1}".format('Running:', stats[i][1])+\
                 "\n\t{0:20} {1}\n".format('Finished:', stats[i][2])
@@ -182,10 +185,13 @@ class Crawl:
         self._id = False
 
     def run(self, blender, responses_handler):
+        self.platform.logger.info('[Starting crawl] %s', self.str())
         self.status = 1
         self.campaign.statistics.change_status(0, 1, self.platform.name) 
         # Strategy is not used at the moment (only search strategy)
         keywords = self.parameters
+        # Redirects to the right spider
+        # IDEA: improve this
         if str(self.platform.name) == 'twitter':
             new_spider = TwitterSearch(responses_handler)
             new_spider.set_keywords(keywords)
@@ -204,14 +210,22 @@ class Crawl:
         else:
             #TODO
             return
+        # The spider takes care of running the crawl
         new_spider.run(blender)
+        # Once it is done, we update some statistics
         self.end_date = datetime.now()
         self.status = 2
         self.requests_count = new_spider.requests_count
         self.campaign.statistics.increase_requests(self.requests_count,\
                 self.platform.name)
         self.campaign.statistics.change_status(1, 2, self.platform.name) 
-        logging.info('Crawl completed \n Crawler info \n %s' % self.str())
+        self.platform.logger.info('[Completed crawl] %s' % self.str())
+        # Checks the crawl duration
+        crawl_duration = self.end_date - self.start_date
+        crawl_duration_s = crawl_duration.total_seconds()
+        if (crawl_duration_s < 5):
+            logger.warning( 'Crawl duration < 5s for %s' %
+                            self.str())
 
     def set_id(self, _id):
         self._id = _id
@@ -220,14 +234,12 @@ class Crawl:
         if self.status == 2:
             end_date = self.end_date
         elif self.status == 1:
-            end_date = 'Still running'
+            end_date = 'still running'
         elif self.status == 0:
-            end_date = 'Waiting'
-        return  "\n\t---" +\
-                "\n\t{0:20} {1}".format('Start date:', self.start_date) +\
-                "\n\t{0:20} {1}".format('Platform:', self.platform.name) +\
-                "\n\t{0:20} {1}".format('Parameters:', self.parameters) +\
-                "\n\t{0:20} {1}".format('End date:', end_date)
+            end_date = 'waiting'
+        return  "id: %s - start date: %s - platform: %s - parameters: %s" \
+                " - end date: %s" % (self._id, self.start_date,
+                                self.platform.name, self.parameters, end_date)
 
 
 class Spider: 
@@ -240,6 +252,9 @@ class Spider:
     def handle_response(self, response):
         self.responses_handler.add_response(response)
  
+# 
+# IDEA: The class division made here might be improved
+#
 
 class FacebookSearch(Spider):
     def __init__(self, responses_handler):
@@ -254,7 +269,6 @@ class FacebookSearch(Spider):
         success = True
         until = None 
         while success: 
-            # TODO: error handling, keyword
             blender.set_url_params({"q": self.keywords_str})
             if until:
                 blender.set_url_params({"until": until})
@@ -271,14 +285,14 @@ class FacebookSearch(Spider):
             try:
                 query_dict = urlparse.parse_qs(query_str)
             except Exception as e:
-                logging.error('URL parsing: %s, error: %s' % (query_str,e))
+                logger.error('[URL parsing]: %s, error: %s' % (query_str,e))
             until = None
             for item in query_dict:
                 if str(item) == 'until':
                     try:
                         until = int(query_dict[item][0])
                     except Exception as e:
-                        logging.error('Facebook until field: %s, error: %s' % \
+                        logger.error('[Facebook until field]: %s, error: %s' % \
                                 (until, e))
 
             success = 300 > response["headers"]['status'] >= 200 and until
@@ -289,7 +303,6 @@ class FacebookSearch(Spider):
 class FlickrSearch(Spider):
     def __init__(self, responses_handler):
         Spider.__init__(self, responses_handler)
-        self.TRIPLE_PREFIX = "flickr/"
 
     def set_keywords(self, keywords):
         self.keywords_str = string.join(keywords,' ')
@@ -416,12 +429,12 @@ class TwitterSearchAndUsers(Spider):
                 users.add(twitt['from_user'])
         blender.load_server("twitter-generic")
         for user in users:
-            logging.info("User Name: %s" % user)
+            logger.info("User Name: %s" % user)
             blender.load_interaction('followers')
             blender.set_url_params({"screen_name": user})
             response = blender.blend()
-            logging.info("\tFollowers: %s" % response['loaded_content'])
+            logger.info("\tFollowers: %s" % response['loaded_content'])
             blender.load_interaction('followees')
             blender.set_url_params({"screen_name": user})
             response = blender.blend()
-            logging.info("\tFollowees: %s" % response['loaded_content'])
+            logger.info("\tFollowees: %s" % response['loaded_content'])
