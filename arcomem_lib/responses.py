@@ -17,11 +17,6 @@ class ResponsesHandler:
         self.outlinks_handler = outlinks.OutlinksManager()
 
     def add_response(self, response):
-        # If not successful, the response is not processed
-        if not response['successful_interaction'] or\
-           not response['raw_content']:
-            return
-        # Else ..
         # The whole response goes as a WARC
         self.warcs_handler.add_response(response)
         # Triples and outlinks are processed for each item of the response 
@@ -29,18 +24,19 @@ class ResponsesHandler:
         try:
             response_content = self.find_response_content(response)
         except TypeError:
-            return
+            return 0,0
         blender_config = response['blender_config']
         headers = response['headers']
         # From response content to content item (e.g., from a set of tweets
         # to a unique tweet) 
         if type(response_content) is list:
             for content_item in response_content:
-                self.add_content_item(  content_item, 
+                total_triples, total_outlinks = self.add_content_item(  content_item, 
                                         blender_config, 
                                         headers )
         else:
-            self.add_content_item(response_content, blender_config, headers)
+            total_triples, total_outlinks =\
+                self.add_content_item(response_content, blender_config, headers)
 
     def add_content_item(self, content_item, blender_config, headers):
         try:
@@ -53,11 +49,12 @@ class ResponsesHandler:
         content_item_outlinks = list(self.extract_outlinks( content_item, 
                                                             init_outlinks))
         _clean_outlinks = set(self.clean_outlinks(content_item_outlinks))
-        all_outlinks = \
+        all_outlinks, total_triples = \
             self.triples_handler.add_content_item(   content_item, 
                                                 blender_config, 
                                                 _clean_outlinks )
         self.outlinks_handler.add_outlinks(all_outlinks)
+        return len(all_outlinks), total_triples
 
     def find_response_content(self, response):
         # Looks into the different paths defined in config.py

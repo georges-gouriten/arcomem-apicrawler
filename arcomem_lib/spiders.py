@@ -122,18 +122,13 @@ class Platform:
 
 class Campaign:
     """ A campaign is a set of crawls """
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, _id):
+        self._id = _id
         self.start_date = datetime.now()
         self.statistics = CampaignStatistics()
 
     def str(self):
-        return  "{0:20} {1}".format('Id:', self.name) +\
-                "\n\t---" +\
-                "\n\t{0:20} {1}".format('Start date:', self.start_date)
-
-
-STATUSES = { -1: 'tmp', 0: 'waiting', 1: 'running', 2: 'finished' }
+        return  "id: %s - start date: %s" % (self._id, self.start_date)
 
 
 class CampaignStatistics:
@@ -141,20 +136,19 @@ class CampaignStatistics:
     # TODO: This part could be reshaped, the stats array is not that
     # convenient.
     def __init__(self):
-        self.stats = []
-        for i in range(0, len(config.platforms)):
-            row = []
-            for j in range(0, 4):
-                row.append(0)
-            self.stats.append(row)
+        #TODO: Continue here
+        stat_dict = {}
+                
 
     def change_status(self, status_before, status_now, platform_name):
+        """ Statuses, -1: 'tmp', 0: 'waiting', 1: 'running', 2:
+        'finished' """
         i = config.platforms.index(platform_name)
         if status_before > -1:
             self.stats[i][status_before] -= 1
         self.stats[i][status_now] += 1
 
-    def increase_requests(self, num_req, platform_name):
+    def add_crawl_statistics(self, crawl_statistics, platform_name):
         i = config.platforms.index(platform_name)
         self.stats[i][3] += num_req
 
@@ -172,98 +166,90 @@ class CampaignStatistics:
 class Crawl:
     """ A crawl is a set of request corresponding to a specific strategy """
     def __init__(self, campaign, platform, strategy, parameters):
+        # Id is set externally
+        self._id = None
+        # Constituents
         self.platform = platform
         self.campaign = campaign
         self.strategy = strategy
         self.parameters = parameters
-        self.start_date = datetime.now()
-        # Status: 0 is waiting, 1 is running, 2 is finished
-        self.status = 0
-        self.campaign.statistics.change_status(-1, 0, self.platform.name) 
-        self.end_date = False
-        self.requests_count = 0
-        self._id = False
+        # Time considerations
+        self.start_date = None 
+        self.end_date = None
+        self.duration = None
+        # Statistics
+        self.statistics = None
+        # Status
+        self.set_status(0)
+        # Creates the right spider
+        spider_class = config.spider_mapping[(platform.name, strategy)]
+        self.spider = eval(spider_class + '(parameters)')
+
+    def set_status(status):
+        """ TODO: define the right statuses """
+        self.status = status
+        self.campaign.crawl_statuses.signal_new_status(0) 
 
     def run(self, blender, responses_handler):
+        # Pre-run
+        self.start_date = datetime.now()
         self.platform.logger.info('[Starting crawl] %s', self.str())
-        self.status = 1
-        self.campaign.statistics.change_status(0, 1, self.platform.name) 
-        # Strategy is not used at the moment (only search strategy)
-        keywords = self.parameters
-        # Redirects to the right spider
-        # IDEA: improve this
-        if str(self.platform.name) == 'twitter':
-            new_spider = TwitterSearch(responses_handler)
-            new_spider.set_keywords(keywords)
-        elif str(self.platform.name) == 'facebook':
-            new_spider = FacebookSearch(responses_handler)
-            new_spider.set_keywords(keywords)
-        elif str(self.platform.name) == 'google_plus':
-            new_spider = GoogleplusSearch(responses_handler)
-            new_spider.set_keywords(keywords)
-        elif str(self.platform.name) == 'flickr':
-            new_spider = FlickrSearch(responses_handler)
-            new_spider.set_keywords(keywords)
-        elif str(self.platform.name) == 'youtube':
-            new_spider = YoutubeSearch(responses_handler)
-            new_spider.set_keywords(keywords)
-        else:
-            #TODO
-            return
-        # The spider takes care of running the crawl
-        new_spider.run(blender)
-        # Once it is done, we update some statistics
+        self.set_status(1)
+        # Runs the crawl
+        self.spider.run(blender, responses_handler)
+        # Post-run 
         self.end_date = datetime.now()
-        self.status = 2
-        self.requests_count = new_spider.requests_count
-        self.campaign.statistics.increase_requests(self.requests_count,\
-                self.platform.name)
-        self.campaign.statistics.change_status(1, 2, self.platform.name) 
         self.platform.logger.info('[Completed crawl] %s' % self.str())
+        self.set_status(2)
+        self.statistics = self.spider.statistics
+        self.campaign.statistics.add_crawl_statistics(self.spider,\
+                self.platform.name)
         # Checks the crawl duration
         crawl_duration = self.end_date - self.start_date
-        crawl_duration_s = crawl_duration.total_seconds()
-        if (crawl_duration_s < 5):
-            logger.warning( 'Crawl duration < 5s for %s' %
-                            self.str())
+        self.duration = crawl_duration.total_seconds()
+        if (self.duration < 5):
+            logger.warning( 'Crawl duration < 5 seconds for %s' % self.str())
 
     def set_id(self, _id):
         self._id = _id
 
     def str(self):
-        if self.status == 2:
-            end_date = self.end_date
-        elif self.status == 1:
-            end_date = 'still running'
-        elif self.status == 0:
-            end_date = 'waiting'
-        return  "id: %s - start date: %s - platform: %s - parameters: %s" \
-                " - end date: %s" % (self._id, self.start_date,
-                                self.platform.name, self.parameters, end_date)
+        return  "id: %s - duration (s): %s - platform: %s - strategy: %s -"\
+                " parameters: %s - # requests: %s" % (self._id,
+                        self.duration, self.platform.name, self.strategy,
+                        self.parameters, self.requests_count)
 
 
 class Spider: 
-    """ A spider executes a crawl """
-    def __init__(self, responses_handler):
-        self.beginning_date = datetime.now()
-        self.requests_count = 0
-        self.responses_handler = responses_handler
+    """ A spider executes a specific crawl strategy """
+    def __init__(self, parameters):
+        self.statistics = {
+            'responses': 0,
+            'triples': 0,
+            'outlinks': 0
+        }
+        self.parameters = parameters
 
-    def handle_response(self, response):
-        self.responses_handler.add_response(response)
+    def handle_response(self, response, responses_handler):
+        if not response['successful_interaction']:
+            return
+        # Else ..
+        total_triples, total_outlinks = self.responses_handler.add_response(response)
+        self.statistics.responses += 1
+        self.statistics.triples += total_triples
+        self.statistics.outlinks += total_outlinks
+
  
 # 
 # IDEA: The class definitions made here might be improved
 #
 
 class FacebookSearch(Spider):
-    def __init__(self, responses_handler):
-        Spider.__init__(self, responses_handler)
-
-    def set_keywords(self, keywords):
-        self.keywords_str = string.join(keywords,' ')
+    def __init__(self, parameters):
+        Spider.__init__(self, parameters)
+        self.keywords_str = string.join(parameters,' ')
     
-    def run(self, blender):
+    def run(self, blender, responses_handler):
         blender.load_server("facebook")
         blender.load_interaction("search")
         success = True
@@ -274,14 +260,13 @@ class FacebookSearch(Spider):
             if until:
                 blender.set_url_params({"until": until})
             response = blender.blend()
-            self.requests_count += 1
             # Stops here if it is not succesful
             success = response['successful_interaction'] 
             if not success:
                 break
             # Else ..
             # Handles response
-            self.handle_response(response)
+            self.handle_response(response, responses_handler)
             # Finds next page instruction
             try:
                 next_page_str = response['loaded_content']['paging']['next']
@@ -305,13 +290,11 @@ class FacebookSearch(Spider):
 
 
 class FlickrSearch(Spider):
-    def __init__(self, responses_handler):
-        Spider.__init__(self, responses_handler)
+    def __init__(self, parameters):
+        Spider.__init__(self, parameters)
+        self.keywords_str = string.join(parameters,' ')
 
-    def set_keywords(self, keywords):
-        self.keywords_str = string.join(keywords,' ')
-    
-    def run(self, blender):
+    def run(self, blender, responses_handler):
         blender.load_server("flickr")
         blender.load_interaction("photos_search")
         success = True
@@ -322,12 +305,13 @@ class FlickrSearch(Spider):
             p += 1
             blender.set_url_params({"tags": self.keywords_str, "page": p})
             response = blender.blend()
-            self.requests_count += 1
             # Stops here if it was not successful
             if not response['successful_interaction']:
                 break
             # Else..
-            # Finds the number of pages available
+            # Handles response
+            self.handle_response(response, responses_handler)
+            # Finds number of pages available
             # (we just need to do that once)
             if p == 1:
                 try:
@@ -338,13 +322,11 @@ class FlickrSearch(Spider):
                     break
 
 class GoogleplusSearch(Spider):
-    def __init__(self, responses_handler):
-        Spider.__init__(self, responses_handler)
-
-    def set_keywords(self, keywords):
-        self.keywords_str = string.join(keywords,' ')
+    def __init__(self, parameters):
+        Spider.__init__(self, parameters)
+        self.keywords_str = string.join(parameters,' ')
     
-    def run(self, blender):
+    def run(self, blender, responses_handler):
         blender.load_server("google_plus")
         blender.load_interaction("activities_search")
         _continue = True
@@ -355,14 +337,13 @@ class GoogleplusSearch(Spider):
             if pageToken:
                 blender.set_url_params({"pageToken": pageToken})
             response = blender.blend()
-            self.requests_count += 1
             # Stops here if it was not successful
             success = response['successful_interaction']
             if not success:
                 break
             # Else ..
             # Handles response
-            self.handle_response(response)
+            self.handle_response(response, responses_handler)
             # Finds next page instruction
             try:
                 pageToken = response['loaded_content']['nextPageToken']
@@ -371,13 +352,11 @@ class GoogleplusSearch(Spider):
 
 
 class TwitterSearch(Spider):
-    def __init__(self, responses_handler):
-        Spider.__init__(self, responses_handler)
-
-    def set_keywords(self, keywords):
-        self.keywords_str = string.join(keywords,' ')
+    def __init__(self, parameters):
+        Spider.__init__(self, parameters)
+        self.keywords_str = string.join(parameters,' ')
     
-    def run(self, blender):
+    def run(self, blender, responses_handler):
         blender.load_server("twitter-search")
         blender.load_interaction("search")
         success = True
@@ -386,26 +365,23 @@ class TwitterSearch(Spider):
             # Sets parameters and executes interaction
             blender.set_url_params({"q": self.keywords_str, "page": p})
             response = blender.blend()
-            self.requests_count += 1
             # Stops here if it was not successful
             success = response['successful_interaction']
             if not success:
                 break
             # Else ..
             # Handles response
-            self.handle_response(response)
+            self.handle_response(response, responses_handler)
             # Increase page number
             p += 1
 
 
 class YoutubeSearch(Spider):
-    def __init__(self, responses_handler):
-        Spider.__init__(self, responses_handler)
-
-    def set_keywords(self, keywords):
-        self.keywords_str = string.join(keywords,' ')
+    def __init__(self, parameters):
+        Spider.__init__(self, parameters)
+        self.keywords_str = string.join(parameters,' ')
     
-    def run(self, blender):
+    def run(self, blender, responses_handler):
         blender.load_server("youtube")
         blender.load_interaction("search")
         success = True
@@ -415,14 +391,13 @@ class YoutubeSearch(Spider):
             blender.set_url_params({"q": self.keywords_str, "start-index":\
                 (p-1)*50+1})
             response = blender.blend()
-            self.requests_count += 1
             # Stops here if it was not successful
             success = response['successful_interaction']
             if not response:
                 break
             # Else ..
             # Handles response
-            self.handle_response(response)
+            self.handle_response(response, responses_handler)
             # Increase page number
             p += 1
 
@@ -431,13 +406,13 @@ class YoutubeSearch(Spider):
 #
 class DeprecatedTwitterSearchAndUsers(Spider):
     """ Deprecated """
-    def __init__(self, responses_handler):
-        Spider.__init__(self, results_handler)
+    def __init__(self, parameters):
+        Spider.__init__(self, parameters)
 
     def set_keywords(self, keyword):
         self.keywords = keywords
     
-    def run(self, blender):
+    def run(self, blender, responses_handler):
         blender.load_server("twitter-search")
         blender.load_interaction("search")
         users = set()

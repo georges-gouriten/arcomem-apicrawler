@@ -4,6 +4,7 @@ from threading import Thread
 import datetime
 import os
 import json
+import time
 
 import config
 
@@ -14,26 +15,43 @@ class TripleManager:
     def __init__(self):
         self._triples = Queue.Queue()
         self.s = None
-        self.start_daemon()
+        self.start_daemons()
         logger.info('Triples Manager started')
         self.set_new_file()
+        self.chunk_counter = 0
 
-    def start_daemon(self):
-        t = Thread(target=self.triples_daemon)
-        t.start() 
+    def start_daemons(self):
+        triples_daemon_thread = Thread(target=self.triples_daemon)
+        triples_daemon_thread.start() 
+        writing_rate_thread = Thread(target=self.writing_rate_daemon)
+        writing_rate_thread.start() 
+
+    def writing_rate_daemon(self):
+        """ Periodically reports on the triples writing rate """
+        _period = config.triples_rate_period
+        while True:
+            time.sleep(_period)
+            logger.info('In the last %d s, I processed %d chunks' %
+                    (_period, self.response_counter))
+            self.response_counter = 0
 
     def triples_daemon(self): 
+        """ Looks into the triples queue and sends chunks to the triple
+        store """
         while True:
             chunk = []
-            chunk_size=10000
+            chunk_size=config.triples_chunk_size
             for i in range(0, chunk_size):
+                # If the queue is empty, it will wait till a new triple is
+                # added to the queue
                 triple = self._triples.get(True)
                 chunk.append(triple)
             json.dump
             if not chunk:
                 continue
             string_chunk = self.stringify_triples(chunk)
-            logger.info('[In progress] Sending %s triples' % chunk_size)
+            logger.info('[In progress] Sending %s triples to the triple store' 
+                        % chunk_size)
             triples_transferred = True
             try:
 #
@@ -61,16 +79,19 @@ class TripleManager:
                 with open(self.current_file, 'a') as _f:
                     for triple in chunk:
                         _f.write(json.dumps(triple) + '\n')
-                logger.warning('[Failure] Sent %s triples, saved it into'\
-                        ' the file' % chunk_size)
+                logger.warning('[Failure] Could not send %s triples to'\
+                               'the triple store, saved it into the file'\
+                               ' instead' % chunk_size)
             else:
-                logger.info('[Success] Sent %s triples' % chunk_size)
+                logger.info('[Success] Sent %s triples to the triple store' 
+                            % chunk_size)
+            self.chunk_counter += 1
 
     def set_new_file(self):
         file_name = str(datetime.datetime.now())+'.txt'
         self.current_file = os.path.join(config.triples_path, file_name)
-        logger.info(   'Writing non transferred triples in %s' %
-                        self.current_file) 
+        logger.info('Writing non transferred triples in %s' 
+                     % self.current_file) 
    
     def add_content_item(self, content_item, blender_config, outlinks):
         triples = []
@@ -79,11 +100,12 @@ class TripleManager:
             triples, new_outlinks = \
                     self.make_triples(content_item, blender_config, outlinks)
         except Exception as e:
-            logger.error(  'Cound not convert %s, error: %s' % \
-                            (content_item,e))
+            logger.error('Could not convert %s, error: %s'
+                         % (content_item,e))
         for triple in triples:
             self._triples.put(triple)
-        return outlinks.union(new_outlinks)
+        return outlinks.union(new_outlinks), len(_triples)
+        
 
     def make_triples(self, content_item, blender_config, outlinks):
         triples = []

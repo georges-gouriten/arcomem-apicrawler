@@ -27,7 +27,8 @@ class WARCManager:
         writing_rate_thread.start() 
 
     def writing_rate_daemon(self):
-        _period=100
+        """ Periodically reports on the WARCs writing rate """
+        _period = config.warcs_rate_period
         while True:
             time.sleep(_period)
             logger.info('In the last %d s, I processed %d responses' %
@@ -35,8 +36,10 @@ class WARCManager:
             self.response_counter = 0
 
     def warcs_daemon(self): 
+        """ Looks into the response queue and writes it in the WARC """
         while True:
-            # Will wait till a new response is added to the queue
+            # If the queue is empty, it will wait till a new response is
+            # added to the queue
             response = self.responses_queue.get(True)
             self.write_warc(response)
 
