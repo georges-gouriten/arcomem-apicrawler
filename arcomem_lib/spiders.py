@@ -253,7 +253,7 @@ class Spider:
         self.responses_handler.add_response(response)
  
 # 
-# IDEA: The class division made here might be improved
+# IDEA: The class definitions made here might be improved
 #
 
 class FacebookSearch(Spider):
@@ -269,13 +269,20 @@ class FacebookSearch(Spider):
         success = True
         until = None 
         while success: 
+            # Sets parameters and executes interaction
             blender.set_url_params({"q": self.keywords_str})
             if until:
                 blender.set_url_params({"until": until})
             response = blender.blend()
-            if not response:
-                break
             self.requests_count += 1
+            # Stops here if it is not succesful
+            success = response['successful_interaction'] 
+            if not success:
+                break
+            # Else ..
+            # Handles response
+            self.handle_response(response)
+            # Finds next page instruction
             try:
                 next_page_str = response['loaded_content']['paging']['next']
             except Exception:
@@ -285,19 +292,16 @@ class FacebookSearch(Spider):
             try:
                 query_dict = urlparse.parse_qs(query_str)
             except Exception as e:
-                logger.error('[URL parsing]: %s, error: %s' % (query_str,e))
+                logger.error('[Facebook]: Error while parsing %s, error: %s' % 
+                        (query_str,e))
             until = None
             for item in query_dict:
                 if str(item) == 'until':
                     try:
                         until = int(query_dict[item][0])
                     except Exception as e:
-                        logger.error('[Facebook until field]: %s, error: %s' % \
-                                (until, e))
-
-            success = 300 > response["headers"]['status'] >= 200 and until
-            if success:
-                self.handle_response(response)
+                        logger.error('[Facebook]: Wrong response, check the\
+                                API is properly configured, error: %s' % e)
 
 
 class FlickrSearch(Spider):
@@ -314,16 +318,24 @@ class FlickrSearch(Spider):
         p = 0
         pages = 1 
         while p < pages: 
+            # Sets parameters and executes interaction
             p += 1
-            # TODO: error handling, keyword
             blender.set_url_params({"tags": self.keywords_str, "page": p})
             response = blender.blend()
             self.requests_count += 1
+            # Stops here if it was not successful
             if not response['successful_interaction']:
                 break
-            # Manual definition of maximum page
+            # Else..
+            # Finds the number of pages available
+            # (we just need to do that once)
             if p == 1:
-                pages = response['loaded_content']['photos']['pages']
+                try:
+                    pages = response['loaded_content']['photos']['pages']
+                except KeyError:
+                    logger.error('[FlickR]: Wrong response, check the API is\
+                    properly configured (is there an auth file?).')
+                    break
 
 class GoogleplusSearch(Spider):
     def __init__(self, responses_handler):
@@ -338,22 +350,23 @@ class GoogleplusSearch(Spider):
         _continue = True
         pageToken = None
         while _continue: 
-            # TODO: error handling, keyword
+            # Sets parameters and executes interaction
             blender.set_url_params({"query": self.keywords_str})
             if pageToken:
                 blender.set_url_params({"pageToken": pageToken})
             response = blender.blend()
-            if not response:
+            self.requests_count += 1
+            # Stops here if it was not successful
+            success = response['successful_interaction']
+            if not success:
                 break
+            # Else ..
+            # Handles response
+            self.handle_response(response)
+            # Finds next page instruction
             try:
                 pageToken = response['loaded_content']['nextPageToken']
             except Exception:
-                _continue = False
-            self.requests_count += 1
-            success = ( 300 > response["headers"]['status'] >= 200 )
-            if success:
-                self.handle_response(response)
-            else:
                 _continue = False
 
 
@@ -368,17 +381,22 @@ class TwitterSearch(Spider):
         blender.load_server("twitter-search")
         blender.load_interaction("search")
         success = True
-        p = 0
+        p = 1
         while success: 
-            p += 1
+            # Sets parameters and executes interaction
             blender.set_url_params({"q": self.keywords_str, "page": p})
             response = blender.blend()
-            if not response:
-                break
             self.requests_count += 1
-            success = ( 300 > response["headers"]['status'] >= 200 )
-            if success:
-                self.handle_response(response)
+            # Stops here if it was not successful
+            success = response['successful_interaction']
+            if not success:
+                break
+            # Else ..
+            # Handles response
+            self.handle_response(response)
+            # Increase page number
+            p += 1
+
 
 class YoutubeSearch(Spider):
     def __init__(self, responses_handler):
@@ -391,22 +409,28 @@ class YoutubeSearch(Spider):
         blender.load_server("youtube")
         blender.load_interaction("search")
         success = True
-        p = 0
+        p = 1
         while success: 
-            p += 1
+            # Sets parameters and executes interaction
             blender.set_url_params({"q": self.keywords_str, "start-index":\
                 (p-1)*50+1})
             response = blender.blend()
+            self.requests_count += 1
+            # Stops here if it was not successful
+            success = response['successful_interaction']
             if not response:
                 break
-            self.requests_count += 1
-            success = ( 300 > response["headers"]['status'] >= 200 )
-            if success:
-                self.handle_response(response)
+            # Else ..
+            # Handles response
+            self.handle_response(response)
+            # Increase page number
+            p += 1
 
-
-class TwitterSearchAndUsers(Spider):
-    """ Currently deprecated """
+#
+# Deprecated
+#
+class DeprecatedTwitterSearchAndUsers(Spider):
+    """ Deprecated """
     def __init__(self, responses_handler):
         Spider.__init__(self, results_handler)
 

@@ -17,12 +17,19 @@ class ResponsesHandler:
         self.outlinks_handler = outlinks.OutlinksManager()
 
     def add_response(self, response):
+        # If not successful, the response is not processed
+        if not response['successful_interaction'] or\
+           not response['raw_content']:
+            return
+        # Else ..
         # The whole response goes as a WARC
         self.warcs_handler.add_response(response)
         # Triples and outlinks are processed for each item of the response 
         # Manually finds the content in the response
-        blender_content = response['loaded_content']
-        response_content = self.find_response_content(blender_content)
+        try:
+            response_content = self.find_response_content(response)
+        except TypeError:
+            return
         blender_config = response['blender_config']
         headers = response['headers']
         # From response content to content item (e.g., from a set of tweets
@@ -53,18 +60,24 @@ class ResponsesHandler:
         self.outlinks_handler.add_outlinks(all_outlinks)
 
     def find_response_content(self, response):
-        response_content = response
-        for item in config.response_content_path:
+        # Looks into the different paths defined in config.py
+        response_content = response['loaded_content']
+        for path in config.response_content_path.values():
             found = False
-            for key in config.response_content_path[item].split('.'):
+            for key in path.split('.'):
                 try:
                     response_content = response_content[key]
                     found = True
                 except Exception:
                     found = False
                     break
+            # If one works, it returns directly
             if found:
                 return response_content
+        # Getting here means that no path worked, thus it raises an error
+        logger.error( 'Could not find content for response: %s' %
+                      response['blender_config']['request_url'])
+        raise TypeError
 
     def extract_outlinks(self, _content, outlinks):
         if type(_content) is dict:

@@ -1,2 +1,2 @@
 #!/bin/sh
-curl -v -H "Content-Type: application/json" -X POST -d '[["lola","facebook","search",["olympics", "business"]],["lola","twitter","search",["olympics", "business"]],["lola","youtube","search",["olympics", "business"]],["lola","flickr","search",["olympics", "business"]],["lola","google_plus","search",["olympics", "business"]]]' localhost:8080/crawl/add
+curl -v -H "Content-Type: application/json" -X POST -d '[["lola","facebook","search",["helium"]],["lola","twitter","search",["helium"]],["lola","youtube","search",["helium"]],["lola","flickr","search",["helium"]],["lola","google_plus","search",["helium"]]]' localhost:8080/crawl/add

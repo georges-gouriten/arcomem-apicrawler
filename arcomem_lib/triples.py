@@ -9,12 +9,14 @@ import config
 
 logger = logging.getLogger('triples')
 
+
 class TripleManager:
     def __init__(self):
         self._triples = Queue.Queue()
         self.s = None
         self.start_daemon()
-        self.current_filename = str(datetime.datetime.now()) + '.txt'
+        logger.info('Triples Manager started')
+        self.set_new_file()
 
     def start_daemon(self):
         t = Thread(target=self.triples_daemon)
@@ -23,16 +25,16 @@ class TripleManager:
     def triples_daemon(self): 
         while True:
             chunk = []
-            quantity=100000
-            for i in range(0, quantity):
+            chunk_size=10000
+            for i in range(0, chunk_size):
                 triple = self._triples.get(True)
                 chunk.append(triple)
             json.dump
             if not chunk:
                 continue
             string_chunk = self.stringify_triples(chunk)
-            logger.info('Sending %s' % string_chunk[0:75])
-            prefix = 'apicrawler.socket-success.'
+            logger.info('[In progress] Sending %s triples' % chunk_size)
+            triples_transferred = True
             try:
 #
 #               Deprecated triple store socket communication
@@ -42,22 +44,33 @@ class TripleManager:
 #               self.close_socket()
 #
                 raise NotImplementedError, 'waiting for Nikos' 
-            except Exception:
-                prefix = 'apicrawler.socket-failure.'
-            triple_file = os.path.join( config.triples_path, 
-                                        prefix + self.current_filename)
-            try:
-                size = os.path.getsize(triple_file)
-            except OSError:
-                size = 0
-            if size > 500 * 1024 * 1024:
-                self.current_filename = str(datetime.datetime.now())+'.txt'
-                triple_file = os.path.join( config.triples_path, 
-                                            prefix + self.current_filename)
-            with open(triple_file, 'a') as _f:
-                for triple in chunk:
-                    _f.write(json.dumps(triple) + '\n')
+            except Exception as e:
+                triples_transferred = False
+            if not triples_transferred:
+                # Writing non transferred triples in a file
+                #
+                # IDEA: there could be a retry mecanism for non transferred
+                # triples
+                #
+                try:
+                    size = os.path.getsize(self.current_file)
+                except OSError:
+                    size = 0
+                if size > 500 * 1024 * 1024:
+                    self.set_new_file()
+                with open(self.current_file, 'a') as _f:
+                    for triple in chunk:
+                        _f.write(json.dumps(triple) + '\n')
+                logger.warning('[Failure] Sent %s triples, saved it into'\
+                        ' the file' % chunk_size)
+            else:
+                logger.info('[Success] Sent %s triples' % chunk_size)
 
+    def set_new_file(self):
+        file_name = str(datetime.datetime.now())+'.txt'
+        self.current_file = os.path.join(config.triples_path, file_name)
+        logger.info(   'Writing non transferred triples in %s' %
+                        self.current_file) 
    
     def add_content_item(self, content_item, blender_config, outlinks):
         triples = []
@@ -66,7 +79,7 @@ class TripleManager:
             triples, new_outlinks = \
                     self.make_triples(content_item, blender_config, outlinks)
         except Exception as e:
-            logger.error(  'Weird data format for %s, error: %s' % \
+            logger.error(  'Cound not convert %s, error: %s' % \
                             (content_item,e))
         for triple in triples:
             self._triples.put(triple)
