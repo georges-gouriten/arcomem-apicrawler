@@ -29,14 +29,19 @@ class ResponsesHandler:
         headers = response['headers']
         # From response content to content item (e.g., from a set of tweets
         # to a unique tweet) 
+        total_outlinks, total_triples = 0, 0
         if type(response_content) is list:
             for content_item in response_content:
-                total_triples, total_outlinks = self.add_content_item(  content_item, 
+                _total_outlinks, _total_triples = self.add_content_item(
+                                        content_item, 
                                         blender_config, 
                                         headers )
+                total_triples += _total_triples
+                total_outlinks += _total_outlinks
         else:
             total_triples, total_outlinks =\
                 self.add_content_item(response_content, blender_config, headers)
+        return total_outlinks, total_triples
 
     def add_content_item(self, content_item, blender_config, headers):
         try:

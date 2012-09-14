@@ -47,20 +47,20 @@ class WARCManager:
         self.responses_queue.put(response)
 
     def open_warc(self):
-        warc_name = "apicrawler.%s.warc.gz" % (
-            datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S_%f'))
-        logger.info("Writing new WARC file: %s" % warc_name)
-        self.warc_file = warc.open( os.path.join(
-                                        config.warcs_path, 
-                                        warc_name)
-                                    , "w")
+        self.warc_file_path = os.path.join (
+                config.warcs_path,
+                "apicrawler.%s.warc.gz" % (
+                datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S_%f')))
+                
+        logger.info("Writing new WARC file: %s" % self.warc_file_path)
+        self.warc_file = warc.open(self.warc_file_path, "w")
         #
         # Write WARCInfo record
         #
         warc_header = warc.WARCHeader(
                 {   "WARC-Type": "warcinfo",
                     "Content-Type": "application/warc-fields",
-                    "WARC-Filename": warc_name  },
+                    "WARC-Filename": os.path.basename(self.warc_file_path)  },
                 defaults = True)
         warc_payload = 'software: apicrawler\nhostname: ia200127'
         warc_record = warc.WARCRecord(warc_header, warc_payload)

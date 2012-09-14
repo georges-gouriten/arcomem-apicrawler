@@ -32,8 +32,8 @@ class TripleManager:
         while True:
             time.sleep(_period)
             logger.info('In the last %d s, I processed %d chunks' %
-                    (_period, self.response_counter))
-            self.response_counter = 0
+                    (_period, self.chunk_counter))
+            self.chunk_counter = 0
 
     def triples_daemon(self): 
         """ Looks into the triples queue and sends chunks to the triple
@@ -104,7 +104,7 @@ class TripleManager:
                          % (content_item,e))
         for triple in triples:
             self._triples.put(triple)
-        return outlinks.union(new_outlinks), len(_triples)
+        return outlinks.union(new_outlinks), self._triples.qsize()
         
 
     def make_triples(self, content_item, blender_config, outlinks):
