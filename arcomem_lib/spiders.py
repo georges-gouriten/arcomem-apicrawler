@@ -25,31 +25,14 @@ class SpidersController:
         self.responses_handler = responses.ResponsesHandler()
         self.campaigns = []
         self.platforms = []
-        self.crawls = []
         for platform_str in config.platforms:
             platform = Platform(platform_str, self.responses_handler)
             self.platforms.append(platform)
-        # Stores permanently some objects: the crawls
-        self._id2obj_dict = weakref.WeakValueDictionary()
 
-    def remember_object(self, obj):
-        oid = id(obj)
-        self._id2obj_dict[oid] = obj
-        return oid
-
-    def object_from_id(self, oid):
-        _object = None
-        try: 
-            oid = int(oid)
-            _object = self._id2obj_dict[oid]
-        except Exception:
-            pass
-        return _object
-
-    def get_campaign(self, campaign_name):
+    def get_campaign(self, campaign_id):
         campaign = False
         for _campaign in self.campaigns:
-            if str(_campaign.name) == str(campaign_name):
+            if str(_campaign._id) == str(campaign_id):
                 campaign = _campaign 
                 break
         return campaign
@@ -63,37 +46,31 @@ class SpidersController:
         return platform
 
     def add_crawl(self, crawl):
-        [campaign_name, platform_name, strategy, parameters] = crawl
-        campaign = self.get_campaign(campaign_name)
+        [campaign_id, platform_name, strategy, parameters] = crawl
+        # Gets the right campaign and platform
+        campaign = self.get_campaign(campaign_id)
         if not campaign:
-            campaign = Campaign(campaign_name)
+            campaign = Campaign(campaign_id)
             self.campaigns.append(campaign)
         platform = self.get_platform(platform_name)
-        crawl = Crawl(campaign, platform, strategy, parameters)
-        crawl_id = self.remember_object(crawl)
-        crawl.set_id(crawl_id)
-        platform.add_crawl_to_queue(crawl)
-        self.crawls.append(crawl)
+        # The campaign object takes care of creating the crawl
+        crawl_id = campaign.add_crawl(platform, strategy, parameters)
         return crawl_id
 
-    def del_campaign(self, campaign_name):
-        campaign = self.get_campaign(campaign_name)
+    def del_campaign(self, campaign_id):
+        campaign = self.get_campaign(campaign_id)
         for i, _campaign in enumerate(self.campaigns):
-            if str(campaign.name) == str(_campaign.name):
+            if str(campaign._id) == str(_campaign._id):
                 del self.campaigns[i]
         del _campaign
         del campaign
 
+    def get_campaign_ids(self):
+        return [campaign._id for campaign in self.campaigns]
 
-    def get_campaign_names(self):
-        return [campaign.name for campaign in self.campaigns]
-
-    def get_crawls(self, campaign_name):
-        crawls = []
-        for crawl in self.crawls:
-            if str(crawl.campaign.name) == str(campaign_name):
-                crawls.append(crawl)
-        return crawls
+    def get_crawls(self, campaign_id):
+        campaign = self.get_campaign(campaign_id)
+        return campaign.crawls
 
     def get_load(self):
         return [platform.queue.qsize() for platform in self.platforms]
@@ -126,42 +103,60 @@ class Campaign:
         self._id = _id
         self.start_date = datetime.now()
         self.statistics = CampaignStatistics()
+        # Stores permanently some objects: the crawls
+        self.crawls = []
+        self._id2obj_dict = weakref.WeakValueDictionary()
 
     def str(self):
         return  "id: %s - start date: %s" % (self._id, self.start_date)
+    
+    def add_crawl(self, platform, strategy, parameters):
+        crawl = Crawl(self, platform, strategy, parameters)
+        crawl_id = self.remember_object(crawl)
+        crawl.set_id(crawl_id)
+        platform.add_crawl_to_queue(crawl)
+        self.crawls.append(crawl)
+        return crawl_id
+
+    def remember_object(self, obj):
+        oid = id(obj)
+        self._id2obj_dict[oid] = obj
+        return oid
+
+    def object_from_id(self, oid):
+        _object = None
+        try: 
+            oid = int(oid)
+            _object = self._id2obj_dict[oid]
+        except Exception:
+            pass
+        return _object
 
 
 class CampaignStatistics:
     """ Statistics belonging to a campaign """
-    # TODO: This part could be reshaped, the stats array is not that
-    # convenient.
     def __init__(self):
-        #TODO: Continue here
-        stat_dict = {}
-                
+        self.stat_dict = {}
+        for platform in platforms:
+            self.stat_dict.update(
+                {
+                    platform: {
+                        'total_finished_crawls': 0,
+                        'total_responses': 0,
+                        'total_triples': 0
+                        'total_outlinks': 0
+                    }
+                }   
+            )
 
-    def change_status(self, status_before, status_now, platform_name):
-        """ Statuses, -1: 'tmp', 0: 'waiting', 1: 'running', 2:
-        'finished' """
-        i = config.platforms.index(platform_name)
-        if status_before > -1:
-            self.stats[i][status_before] -= 1
-        self.stats[i][status_now] += 1
-
-    def add_crawl_statistics(self, crawl_statistics, platform_name):
-        i = config.platforms.index(platform_name)
-        self.stats[i][3] += num_req
-
-    def str(self):
-        i = 0
-        _string = ''
-        for platform_str in config.platforms:
-            _string += "---" + "\n{0:20}".format(_platform) + \
-                "\n\t{0:20} {1}".format('Waiting:', stats[i][0])+\
-                "\n\t{0:20} {1}".format('Running:', stats[i][1])+\
-                "\n\t{0:20} {1}\n".format('Finished:', stats[i][2])
-            i += 1
-        return _string
+    def add_crawl_statistics(self, statistics, platform_name):
+        total_responses = statistics['total_responses']
+        total_outlinks = statistics['total_outlinks']
+        total_triples = statistics['total_triples']
+        self.stat_dict[platform_name]['total_finished_crawls'] += 1
+        self.stat_dict[platform_name]['total_responses'] += total_responses
+        self.stat_dict[platform_name]['total_triples'] += total_triples
+        self.stat_dict[platform_name]['total_outlinks'] += total_outlinks 
 
 class Crawl:
     """ A crawl is a set of request corresponding to a specific strategy """
@@ -188,7 +183,6 @@ class Crawl:
     def set_status(status):
         """ TODO: define the right statuses """
         self.status = status
-        self.campaign.crawl_statuses.signal_new_status(0) 
 
     def run(self, blender, responses_handler):
         # Pre-run
@@ -202,7 +196,7 @@ class Crawl:
         self.platform.logger.info('[Completed crawl] %s' % self.str())
         self.set_status(2)
         self.statistics = self.spider.statistics
-        self.campaign.statistics.add_crawl_statistics(self.spider,\
+        self.campaign.statistics.add_crawl_statistics(self.statistics,\
                 self.platform.name)
         # Checks the crawl duration
         crawl_duration = self.end_date - self.start_date
@@ -224,9 +218,9 @@ class Spider:
     """ A spider executes a specific crawl strategy """
     def __init__(self, parameters):
         self.statistics = {
-            'responses': 0,
-            'triples': 0,
-            'outlinks': 0
+            'total_responses': 0,
+            'total_triples': 0,
+            'total_outlinks': 0
         }
         self.parameters = parameters
 
@@ -235,9 +229,9 @@ class Spider:
             return
         # Else ..
         total_triples, total_outlinks = self.responses_handler.add_response(response)
-        self.statistics.responses += 1
-        self.statistics.triples += total_triples
-        self.statistics.outlinks += total_outlinks
+        self.statistics['total_responses'] += 1
+        self.statistics['total_triples'] += total_triples
+        self.statistics['total_outlinks'] += total_outlinks
 
  
 # 
