@@ -5,6 +5,7 @@ import logging
 import logging.config 
 
 from arcomem_lib import interface
+from arcomem_lib import config
 
 web.config.debug = False
 render = web.template.render('templates/')
@@ -13,7 +14,7 @@ urls = (
               '/crawl/add_direct/?', 'add_crawl_directly',
               '/crawl/([^/]+)/?', 'crawl_information_or_deletion',
               '/crawl/([^/]+)/stop/?', 'stop_crawl',
-              '/crawls/?', 'crawls_informations'
+              '/crawls/?', 'crawls_information'
               #     Deprecated
               #'/campaigns?/?', 'campaigns',
               #'/campaign/([^/]+)/crawls/?', 'crawls',
@@ -40,12 +41,10 @@ class add_crawl_from_triple_store:
             crawls_data = json.loads(str_data)
         except Exception as e:
             raise NonJSON, e
-        if type(crawls_data) is list:
-            for crawl_data in crawls_data:
-                try:
-                    crawl_id = crawl_data['crawl_id'] 
-                except Exception as e:
-                    raise WrongFormat, e
+        try:
+            crawl_id = str(crawls_data['crawl_id'])
+        except Exception as e:
+            raise WrongFormat, e
         status = apicrawler_interface.add_triple_store_crawl(crawl_id)
         if status == 404:
             raise NoCrawlInTripleStore
@@ -75,13 +74,27 @@ class add_crawl_directly:
             return json.dumps(crawls_ids, sort_keys=True, indent=4)
         else:
             try:
-                crawl_ids = apicrawler_interface.add_crawl(*crawl_data)
+                crawl_ids = apicrawler_interface.add_crawl(*crawls_data)
             except Exception as e:
                 raise WrongFormat, e
             return json.dumps(crawl_ids, sort_keys=True, indent=4)
 
 def build_crawl_data(crawl):
     """ Returns a human readable dict from a crawl """
+    if crawl.start_date:
+        start_date_str = crawl.start_date.strftime(config.datetime_format)
+    else:
+        start_date_str = 'None'
+    if crawl.actual_start_date:
+        actual_start_date_str = \
+            crawl.actual_start_date.strftime(config.datetime_format)
+    else:
+        actual_start_date_str = 'None'
+    if crawl.actual_end_date:
+        actual_end_date_str = \
+                crawl.start_date.strftime(config.datetime_format)
+    else:
+        actual_end_date_str = 'None'
     return {    "id": crawl._id,
                 "state": crawl.status,
                 "output_warc": crawl.output_warc,
@@ -89,9 +102,9 @@ def build_crawl_data(crawl):
                 "platform": crawl.platform_name,
                 "strategy": crawl.strategy,
                 "parameters": crawl.parameters,
-                "start_date": str(crawl.start_date),
-                "actual_start_date": str(crawl.actual_start_date),
-                "actual_end_date": str(crawl.actual_end_date),
+                "start_date": start_date_str,
+                "actual_start_date": actual_start_date_str,
+                "actual_end_date": actual_end_date_str,
                 "running_time": crawl.running_time,
                 "statistics": crawl.spider.statistics   }
 
@@ -159,27 +172,27 @@ class GenericError(web.HTTPError):
 
 class NonJSON(GenericError):
     def __init__(self, e):
-        status = 400
+        status = '400 non JSON'
         error_data = 'Could not parse data, please check it is proper'\
                      'JSON.' 
-        error_data += '\nPython error: %s' 
+        error_data += ' - Python error: %s' 
         GenericError.__init__(self, status, self.__class__.__name__,
                               error_data)
 
 
 class WrongFormat(GenericError):
     def __init__(self, e):
-        status = 400
+        status = '400 wrong format'
         error_data = 'Wrong data format, please check your format with'\
-                     'the API description'
-        error_data += '\nPython error: %s' 
+                     ' the API description'
+        error_data += ' - Python error: %s' % e
         GenericError.__init__(self, status, self.__class__.__name__,
                               error_data)
 
 
 class NoCrawlInTripleStore(GenericError):
     def __init__(self):
-        status = 404
+        status = '404 crawl not found in the triple store'
         error_data = 'Could not find the crawl specs in the triple store'
         GenericError.__init__(self, status, self.__class__.__name__,
                               error_data)
@@ -187,7 +200,7 @@ class NoCrawlInTripleStore(GenericError):
 
 class CrawlNotFound(GenericError):
     def __init__(self, crawl_id):
-        status = 404
+        status = '404 crawl not found'
         error_data = 'Could not find the crawl: %s' % crawl_id
         GenericError.__init__(self, status, self.__class__.__name__,
                               error_data)
@@ -195,7 +208,7 @@ class CrawlNotFound(GenericError):
 
 class CrawlCouldNotStop(GenericError):
     def __init__(self, crawl_id):
-        status = 500
+        status = '500 crawl could not stop'
         error_data = 'We tried but we failed, please try again to stop'\
                      ' %s' % crawl_id
         GenericError.__init__(self, status, self.__class__.__name__,
@@ -204,7 +217,7 @@ class CrawlCouldNotStop(GenericError):
 
 class CrawlNotStopped(GenericError):
     def __init__(self, crawl_id):
-        status = 400
+        status = '400 crawl is not stopped'
         error_data = 'Cannot delete %s because its status is not on stopped'\
                      % crawl_id
         GenericError.__init__(self, status, self.__class__.__name__,
@@ -213,7 +226,7 @@ class CrawlNotStopped(GenericError):
 
 class UnknownError(GenericError):
     def __init__(self, crawl_id):
-        status = 500
+        status = '500 unknow error'
         error_data = 'Unknown Error, this should not happen!'
         GenericError.__init__(self, status, self.__class__.__name__,
                               error_data)

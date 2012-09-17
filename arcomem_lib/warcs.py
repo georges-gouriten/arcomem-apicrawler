@@ -50,7 +50,7 @@ class WARCManager:
         self.warc_file_path = os.path.join (
                 config.warcs_path,
                 "apicrawler.%s.warc.gz" % (
-                datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S_%f')))
+                datetime.datetime.now().strftime(config.datetime_format)))
                 
         logger.info("Writing new WARC file: %s" % self.warc_file_path)
         self.warc_file = warc.open(self.warc_file_path, "w")

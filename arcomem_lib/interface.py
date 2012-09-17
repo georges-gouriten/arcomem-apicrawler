@@ -3,6 +3,7 @@ import Queue
 from threading import Thread
 import logging
 import math
+import datetime
 
 import apiblender
 
@@ -56,15 +57,23 @@ class APICrawlerInterface:
         platform = self.get_platform(platform_name)
         # Quick trick about the start date
         if start_date:
+            # Converting from string to an actual date
+            # Default conversion used
+            start_date = datetime.datetime.strptime(start_date,
+                                                    config.datetime_format)
             if start_date < datetime.datetime.now():
                 start_date = datetime.datetime.now()
         # Sees how many crawlers we need
         number_of_crawlers = 1
         if period_in_hours and end_date:
+            # Converting from string to an actual date
+            # Default conversion used
+            end_date = datetime.datetime.strptime(end_date,
+                                                  config.datetime_format)
             crawling_time = end_date - start_date
             crawling_time_in_hours = crawling_time.total_seconds()/3600
             number_of_crawlers = \
-                math.ceil(crawling_time_in_hours/period_in_hours) + 1
+                int(math.ceil(crawling_time_in_hours/period_in_hours)) + 1
         # Creates time delayed crawlers
         _crawls = set()
         for i in range(0, number_of_crawlers):
@@ -95,7 +104,7 @@ class APICrawlerInterface:
         #
         return 500
 
-    def stop_crawl(crawl_id):
+    def stop_crawl(self, crawl_id):
         crawl = self.get_crawl(crawl_id)
         if not crawl:
             return 404
@@ -108,7 +117,7 @@ class APICrawlerInterface:
             crawl.spider.order_stop()
             _timeout = 90   # in seconds
             _step = 1
-            _quantity = math.ceil(_timeout/_step)
+            _quantity = int(math.ceil(_timeout/_step)) + 1
             for i in range(0,_quantity):
                 time.sleep(_step)
                 if crawl.status == 'finished':
@@ -122,15 +131,12 @@ class APICrawlerInterface:
             # Makes not much sense to stop what is already stopped
             return 406
 
-    def rm_crawl(crawl_id):
+    def rm_crawl(self, crawl_id):
         crawl = self.get_crawl(crawl_id)
         if not crawl:
             return 404
         if not (crawl.status == 'stopped'):
             return 400
-        # platform
-        platform = self.get_platform(crawl.platform_name)
-        platform.rm_crawl(crawl)
         # self.crawls
         self.crawls.remove(crawl)
         # self.campaign_ids
@@ -149,7 +155,7 @@ class APICrawlerInterface:
     #   Methods not used by the pipeline
     #
 
-    def get_crawl(crawl_id):
+    def get_crawl(self, crawl_id):
         """ Returns a crawl or None from a crawl_id """
         for crawl in self.crawls:
             if crawl._id == crawl_id:
@@ -242,7 +248,6 @@ class Platform:
 
     def add_crawl_to_queue(self, crawl):
         self.queue.put(crawl)
-
 
 class Crawl:
     """ A crawl is a wrapper for a spider execution """

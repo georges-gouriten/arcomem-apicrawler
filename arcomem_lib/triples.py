@@ -49,7 +49,6 @@ class TripleManager:
             json.dump
             if not chunk:
                 continue
-            string_chunk = self.stringify_triples(chunk)
             logger.info('[In progress] Sending %s triples to the triple store' 
                         % chunk_size)
             triples_transferred = True
@@ -88,7 +87,9 @@ class TripleManager:
             self.chunk_counter += 1
 
     def set_new_file(self):
-        file_name = str(datetime.datetime.now())+'.txt'
+        file_name = \
+            datetime.datetime.now().strftime(config.datetime_format) \
+            + '.txt'
         self.current_file = os.path.join(config.triples_path, file_name)
         logger.info('Writing non transferred triples in %s' 
                      % self.current_file) 
@@ -106,6 +107,10 @@ class TripleManager:
             self._triples.put(triple)
         return outlinks.union(new_outlinks), self._triples.qsize()
         
+
+#
+#   IDEA: triples could be marked with a datetime
+#
 
     def make_triples(self, content_item, blender_config, outlinks):
         triples = []
@@ -289,8 +294,9 @@ class TripleManager:
         return triples, new_outlinks
 
 #
-#   Deprecated socket communication
+#       Deprecated socket communication
 #
+
 #    def initiate_socket_connection(self, host='localhost', port=19898):
 #        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 #        self.s.connect((host, port))
@@ -298,6 +304,9 @@ class TripleManager:
 #    def close_socket(self):
 #        self.s.close()
 
+#
+#       Deprecated method
+#
     def stringify_triples(self, triples):
         string_triples = []
         for triple in triples:

@@ -20,6 +20,9 @@ response_content_path = {
             'facebook.search': 'data'
 }
 
+# String format for date-time
+datetime_format = '%Y-%m-%d_%H:%M:%S'
+
 # Mapping platform, strategy to spider classes
 spider_mapping = {
     ('facebook', 'search'):     'FacebookSearch',
