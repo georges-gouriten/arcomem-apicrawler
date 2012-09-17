@@ -4,116 +4,225 @@ import json
 import logging
 import logging.config 
 
-from arcomem_lib import spiders
+from arcomem_lib import interface
 
 web.config.debug = False
 render = web.template.render('templates/')
 urls = (
-              '/crawl/add', 'crawl',
-              '/crawl/add_direct', 'crawl_direct',
-              '/crawl/([^/]+)/?', 'crawl',
-              '/crawls/?', 'crawls',
-              '/campaigns?/?', 'campaigns',
-              '/campaign/([^/]+)/crawls/?', 'crawls',
-              '/campaign/([^/]+)/?', 'campaign',
+              '/crawl/add_from_triple_store/?', 'add_crawl_from_triple_store',
+              '/crawl/add_direct/?', 'add_crawl_directly',
+              '/crawl/([^/]+)/?', 'crawl_information_or_deletion',
+              '/crawl/([^/]+)/stop/?', 'stop_crawl',
+              '/crawls/?', 'crawls_informations'
+              #     Deprecated
+              #'/campaigns?/?', 'campaigns',
+              #'/campaign/([^/]+)/crawls/?', 'crawls',
+              #'/campaign/([^/]+)/?', 'campaign',
 )
 PLATFORMS = [ 'facebook', 'flickr', 'google_plus', 'twitter', 'youtube' ]
 
-# Let's get is started 
+# Let's get started 
 logging.config.fileConfig('logging.conf')
 logger = logging.getLogger('apicrawler')
 logger.info('Starting ARCOMEM APICrawler')
-apicrawler_interface = spiders.APICrawlerInterface()
+apicrawler_interface = interface.APICrawlerInterface()
 
-# Error classes
-class FourHundred(web.HTTPError):
-    def __init__(self, choices):
-        status = '400'
-        headers = {'Content-Type': 'text/html'}
-        data = ''
-        web.HTTPError.__init__(self, status, headers, data)
+#
+# HTTP Response classes
+#
 
-
-class FourHundredAndFour(web.HTTPError):
-    def __init__(self, choices):
-        status = '404'
-        headers = {'Content-Type': 'text/html'}
-        data = ''
-        web.HTTPError.__init__(self, status, headers, data)
-
-class FiveHundred(web.HTTPError):
-    def __init__(self, choices):
-        status = '500'
-        headers = {'Content-Type': 'text/html'}
-        data = ''
-        web.HTTPError.__init__(self, status, headers, data)
-
-# Response classes
-class crawl:
-    # Adds crawl fetching the parameters from the triple store
+class add_crawl_from_triple_store:
     def POST(self):
+        """ Adds a crawl or a list of crawls fetching the parameters from the
+        triple store """
         str_data = web.data()
-        crawl = json.loads(str_data)
-        crawl_id = crawl['crawl_id'] 
+        try:
+            crawls_data = json.loads(str_data)
+        except Exception as e:
+            raise NonJSON, e
+        if type(crawls_data) is list:
+            for crawl_data in crawls_data:
+                try:
+                    crawl_id = crawl_data['crawl_id'] 
+                except Exception as e:
+                    raise WrongFormat, e
         status = apicrawler_interface.add_triple_store_crawl(crawl_id)
         if status == 404:
-            raise FourHundredAndFour
+            raise NoCrawlInTripleStore
         elif status == 200:
             return 'OK'
         else:
-            return 500
-    
+            raise UnknownError
+
+
+class add_crawl_directly:
+    def POST(self):
+        """ Adds a crawl or a list of crawls directly passing the
+        parameters """
+        str_data = web.data()
+        try:
+            crawls_data = json.loads(str_data)
+        except Exception as e:
+            raise NonJSON, e
+        if type(crawls_data[0]) is list:
+            crawls_ids = []
+            for crawl_data in crawls_data:
+                try:
+                    crawl_ids = apicrawler_interface.add_crawl(*crawl_data)
+                except Exception as e:
+                    raise WrongFormat, e
+                crawls_ids.append(crawl_ids)
+            return json.dumps(crawls_ids, sort_keys=True, indent=4)
+        else:
+            try:
+                crawl_ids = apicrawler_interface.add_crawl(*crawl_data)
+            except Exception as e:
+                raise WrongFormat, e
+            return json.dumps(crawl_ids, sort_keys=True, indent=4)
+
+def build_crawl_data(crawl):
+    """ Returns a human readable dict from a crawl """
+    return {    "id": crawl._id,
+                "state": crawl.status,
+                "output_warc": crawl.output_warc,
+                "campaign": crawl.campaign_id,
+                "platform": crawl.platform_name,
+                "strategy": crawl.strategy,
+                "parameters": crawl.parameters,
+                "start_date": str(crawl.start_date),
+                "actual_start_date": str(crawl.actual_start_date),
+                "actual_end_date": str(crawl.actual_end_date),
+                "running_time": crawl.running_time,
+                "statistics": crawl.spider.statistics   }
+
+class crawl_information_or_deletion:    
     def GET(self, crawl_id):
-        crawl = spiders_controller.object_from_id(crawl_id) 
-        crawl_data = {}
-        if crawl:
-            crawl_data = {  "id": crawl._id,
-                    "campaign": crawl.campaign.name,
-                    "platform": crawl.platform.name,
-                    "strategy": crawl.strategy,
-                    "parameters": crawl.parameters,
-                    "start_date": str(crawl.start_date),
-                    "status": crawl.status,
-                    "end_date": str(crawl.end_date),
-                    "requests_count": crawl.requests_count }
+        """ Returns crawl information """
+        crawl = apicrawler_interface.get_crawl(crawl_id) 
+        if not crawl:
+            raise CrawlNotFound, crawl_id
+        # Else ..
+        crawl_data = build_crawl_data(crawl)
         return json.dumps(crawl_data, sort_keys=True, indent=4)
 
-class crawl_direct:
-    # Adds crawl directly passing the parameters
-    def POST(self):
-        str_data = web.data()
-        crawls_data = json.loads(str_data)
-        crawls_ids = []
-        for crawl_data in crawls_data:
-            crawl_ids = apicrawler_interface.add_crawl(*crawl_data)
-            crawls_ids.append(crawl_ids)
-        return json.dumps(crawls_ids, sort_keys=True, indent=4)
+    def DEL(self, crawl_id):
+        """ Deletes crawl """
+        status = apicrawler_interface.rm_crawl(crawl_id)
+        if status == 200:
+            return 'OK'
+        elif status == 404:
+            raise CrawlNotFound, crawl_id
+        elif status == 400:
+            raise CrawlNotStopped, crawl_id
+        else:
+            raise UnknownError
 
-class crawls:
+class stop_crawl:
+    def POST(self, crawl_id):
+        """ Stops crawl """
+        status = apicrawler_interface.stop_crawl(crawl_id)
+        if status == 200:
+            return 'OK'
+        elif status == 406:
+            return 'Crawl was already stopped or finished!'
+        elif status == 404:
+            raise CrawlNotFound, crawl_id
+        elif status == 405:
+            raise CrawlCouldNotStop, crawl_id
+        else:
+            raise UnknownError
+
+
+
+class crawls_information:
     def GET(self):
+        """ Returns all crawls information """
         crawls = apicrawler_interface.crawls
         crawls_data = []
         for crawl in crawls:
-            crawl_data = {  "id": crawl._id,
-                            "state": crawl.status,
-                            "output_warc": crawl.output_warc,
-                            "campaign": crawl.campaign_id,
-                            "platform": crawl.platform_name,
-                            "strategy": crawl.strategy,
-                            "parameters": crawl.parameters,
-                            "start_date": str(crawl.start_date),
-                            "actual_start_date": str(crawl.actual_start_date),
-                            "actual_end_date": str(crawl.actual_end_date),
-                            "running_time": crawl.running_time,
-                            "statistics": crawl.spider.statistics
-                        }
+            crawl_data = build_crawl_data(crawl)
             crawls_data.append(crawl_data)
         return json.dumps(crawls_data, sort_keys=True, indent=4)
 
+#
+#       Error classes
+#
+
+#Wrapper
+class GenericError(web.HTTPError):
+    def __init__(self, status, error_name, error_data):
+        headers = {'Content-Type': 'text/html'}
+        data = json.dumps([error_name, error_data], sort_keys=True,
+                          indent=4)
+        web.HTTPError.__init__(self, status, headers, data)
+
+
+class NonJSON(GenericError):
+    def __init__(self, e):
+        status = 400
+        error_data = 'Could not parse data, please check it is proper'\
+                     'JSON.' 
+        error_data += '\nPython error: %s' 
+        GenericError.__init__(self, status, self.__class__.__name__,
+                              error_data)
+
+
+class WrongFormat(GenericError):
+    def __init__(self, e):
+        status = 400
+        error_data = 'Wrong data format, please check your format with'\
+                     'the API description'
+        error_data += '\nPython error: %s' 
+        GenericError.__init__(self, status, self.__class__.__name__,
+                              error_data)
+
+
+class NoCrawlInTripleStore(GenericError):
+    def __init__(self):
+        status = 404
+        error_data = 'Could not find the crawl specs in the triple store'
+        GenericError.__init__(self, status, self.__class__.__name__,
+                              error_data)
+
+
+class CrawlNotFound(GenericError):
+    def __init__(self, crawl_id):
+        status = 404
+        error_data = 'Could not find the crawl: %s' % crawl_id
+        GenericError.__init__(self, status, self.__class__.__name__,
+                              error_data)
+
+
+class CrawlCouldNotStop(GenericError):
+    def __init__(self, crawl_id):
+        status = 500
+        error_data = 'We tried but we failed, please try again to stop'\
+                     ' %s' % crawl_id
+        GenericError.__init__(self, status, self.__class__.__name__,
+                              error_data)
+  
+
+class CrawlNotStopped(GenericError):
+    def __init__(self, crawl_id):
+        status = 400
+        error_data = 'Cannot delete %s because its status is not on stopped'\
+                     % crawl_id
+        GenericError.__init__(self, status, self.__class__.__name__,
+                              error_data)
+
+
+class UnknownError(GenericError):
+    def __init__(self, crawl_id):
+        status = 500
+        error_data = 'Unknown Error, this should not happen!'
+        GenericError.__init__(self, status, self.__class__.__name__,
+                              error_data)
+
 
 #
-#        Not used
+#        Deprecated response classes 
 #
+
 #
 #class campaigns:
 #    load = spiders_controller.get_load()

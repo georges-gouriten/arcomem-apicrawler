@@ -4,7 +4,7 @@ import os
 #       Generic
 #
 
-# Platforms dealt by the apicrawler
+# Platforms managed by the apicrawler
 platforms = [ 'facebook', 'flickr', 'google_plus', 'twitter', 'youtube' ]
 
 # Output directory
