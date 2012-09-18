@@ -1,3 +1,7 @@
+#
+# Ad hoc and basic testing at the moment
+# IDEA: use python unittest library
+#
 import httplib
 import json
 import datetime
