@@ -79,35 +79,6 @@ class add_crawl_directly:
                 raise WrongFormat, e
             return json.dumps(crawl_ids, sort_keys=True, indent=4)
 
-def build_crawl_data(crawl):
-    """ Returns a human readable dict from a crawl """
-    if crawl.start_date:
-        start_date_str = crawl.start_date.strftime(config.datetime_format)
-    else:
-        start_date_str = 'None'
-    if crawl.actual_start_date:
-        actual_start_date_str = \
-            crawl.actual_start_date.strftime(config.datetime_format)
-    else:
-        actual_start_date_str = 'None'
-    if crawl.actual_end_date:
-        actual_end_date_str = \
-                crawl.start_date.strftime(config.datetime_format)
-    else:
-        actual_end_date_str = 'None'
-    return {    "id": crawl._id,
-                "state": crawl.status,
-                "output_warc": crawl.output_warc,
-                "campaign": crawl.campaign_id,
-                "platform": crawl.platform_name,
-                "strategy": crawl.strategy,
-                "parameters": crawl.parameters,
-                "start_date": start_date_str,
-                "actual_start_date": actual_start_date_str,
-                "actual_end_date": actual_end_date_str,
-                "running_time": crawl.running_time,
-                "statistics": crawl.spider.statistics   }
-
 class crawl_information_or_deletion:    
     def GET(self, crawl_id):
         """ Returns crawl information """
@@ -115,8 +86,7 @@ class crawl_information_or_deletion:
         if not crawl:
             raise CrawlNotFound, crawl_id
         # Else ..
-        crawl_data = build_crawl_data(crawl)
-        return json.dumps(crawl_data, sort_keys=True, indent=4)
+        return str(crawl) 
 
     def DEL(self, crawl_id):
         """ Deletes crawl """
@@ -136,11 +106,11 @@ class stop_crawl:
         status = apicrawler_interface.stop_crawl(crawl_id)
         if status == 200:
             return 'OK'
-        elif status == 406:
+        elif status == 113:
             return 'Crawl was already stopped or finished!'
         elif status == 404:
             raise CrawlNotFound, crawl_id
-        elif status == 405:
+        elif status == 500:
             raise CrawlCouldNotStop, crawl_id
         else:
             raise UnknownError
@@ -151,11 +121,12 @@ class crawls_information:
     def GET(self):
         """ Returns all crawls information """
         crawls = apicrawler_interface.crawls
-        crawls_data = []
+        crawls_str = '[\n'
         for crawl in crawls:
-            crawl_data = build_crawl_data(crawl)
-            crawls_data.append(crawl_data)
-        return json.dumps(crawls_data, sort_keys=True, indent=4)
+            crawls_str += str(crawl) + ',\n'
+        crawls_str = crawls_str.rstrip(',\n')
+        crawls_str += '\n]'
+        return crawls_str
 
 #
 #       Error classes
@@ -225,7 +196,7 @@ class CrawlNotStopped(GenericError):
 
 
 class UnknownError(GenericError):
-    def __init__(self, crawl_id):
+    def __init__(self):
         status = '500 unknow error'
         error_data = 'Unknown Error, this should not happen!'
         GenericError.__init__(self, status, self.__class__.__name__,
