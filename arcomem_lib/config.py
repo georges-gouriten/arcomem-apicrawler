@@ -10,14 +10,15 @@ platforms = [ 'facebook', 'flickr', 'google_plus', 'twitter', 'youtube' ]
 # Output directory
 output_path = os.path.join(os.path.dirname(__file__), "output")
 
-# Ad hoc paths in response data 
-# Format is 'apiblender's service.interaction': 'key1.key2'
-response_content_path = {
-            'twitter-search.search': 'results',
-            'youtube.search': 'feed.entry',
-            'flickr.photos_search': 'photos.photo',
-            'google_plus.activities_search': 'items',
-            'facebook.search': 'data'
+# Paths to content items in response data
+# Format is (server, interaction): 'key1.key2. ... .keyN'
+response_content_paths = { 
+    ('facebook', 'search'):                 'data',
+    ('facebook', 'users'):                  '',
+    ('flickr', 'search'):                   'photos.photo',
+    ('google_plus', 'activities_search'):   'items',
+    ('youtube', 'search'):                  'feed.entry',
+    ('twitter', 'search'):                  'results'
 }
 
 # String format for date-time
@@ -26,6 +27,7 @@ datetime_format = '%Y-%m-%d_%H:%M:%S'
 # Mapping platform, strategy to spider classes
 spider_mapping = {
     ('facebook', 'search'):     'FacebookSearch',
+    ('facebook', 'users'):      'FacebookUsers',
     ('flickr', 'search'):       'FlickrSearch',
     ('google_plus', 'search'):  'GooglePlusSearch',
     ('youtube', 'search'):      'YoutubeSearch',

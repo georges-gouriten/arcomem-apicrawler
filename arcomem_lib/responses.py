@@ -19,37 +19,35 @@ class ResponsesHandler:
     def add_response(self, response):
         # The whole response goes as a WARC
         self.warcs_handler.add_response(response)
-        # Triples and outlinks are processed for each item of the response 
-        # Manually finds the content in the response
-        try:
-            response_content = self.find_response_content(response)
-        except TypeError:
-            return 0,0
+        # Regarding triples and outlinks, we need to process each item of the
+        # response (e.g. a tweet)
+        content_items = self.get_content_items(response)
         blender_config = response['blender_config']
         headers = response['headers']
-        # From response content to content item (e.g., from a set of tweets
-        # to a unique tweet) 
         total_outlinks, total_triples = 0, 0
-        if type(response_content) is list:
-            for content_item in response_content:
-                _total_outlinks, _total_triples = self.add_content_item(
+        for content_item in content_items:
+                item_outlinks, item_triples = self.add_content_item(
                                         content_item, 
                                         blender_config, 
                                         headers )
-                total_triples += _total_triples
-                total_outlinks += _total_outlinks
-        else:
-            total_triples, total_outlinks =\
-                self.add_content_item(response_content, blender_config, headers)
+                total_triples += item_triples
+                total_outlinks += item_outlinks
         return total_outlinks, total_triples
 
     def add_content_item(self, content_item, blender_config, headers):
         try:
             str(content_item['id'])
         except Exception:
-            logger.error('Processing the output: %s has no ID' %\
-                (content_item))
-            return None
+            try:
+                # Ad hoc add on for facebook users
+                # Not great, I agree (cf IDEA up above)
+                for key in content_item:
+                    content_item[key]['id']
+                    content_item = content_item[key]
+            except Exception:
+                logger.error('Processing the output, could not find a right
+                             content item: %s' % (content_item))
+                return None
         init_outlinks = set()
         content_item_outlinks = list(self.extract_outlinks( content_item, 
                                                             init_outlinks))
@@ -62,24 +60,29 @@ class ResponsesHandler:
         return len(all_outlinks), total_triples
 
     def find_response_content(self, response):
-        # Looks into the different paths defined in config.py
+        """ Manually finds all the content items (e.g. a tweet) in the
+        response """
+        content = response['loaded_content']
+        # Tries the paths defined in config.py
+        server, interaction = response['blender_config']['server'], \
+                              response['blender_config']['interaction']
+        content_path = config.response_content_paths((server, interaction))
+        if not content_path:
+            content_items = response['loaded_content']
+        found = False
         response_content = response['loaded_content']
-        for path in config.response_content_path.values():
-            found = False
-            for key in path.split('.'):
-                try:
-                    response_content = response_content[key]
-                    found = True
-                except Exception:
-                    found = False
-                    break
+        for key in path.split('.'):
+            try:
+                response_content = response_content[key]
+                found = True
+            except Exception:
+                found = False
+                break
             # If one works, it returns directly
             if found:
                 return response_content
-        # Getting here means that no path worked, thus it raises an error
-        logger.error( 'Could not find content for response: %s' %
-                      response['blender_config']['request_url'])
-        raise TypeError
+        # Nothing worked, it returns the loaded content
+        return response['loaded_content']
 
     def extract_outlinks(self, _content, outlinks):
         if type(_content) is dict:

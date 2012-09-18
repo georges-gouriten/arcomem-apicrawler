@@ -8,6 +8,7 @@ import config
 
 logger = logging.getLogger('apicrawler')
 
+
 class Spider: 
     """ A spider executes a specific crawl strategy """
     def __init__(self, parameters, start_date, end_date):
@@ -88,11 +89,35 @@ class Spider:
                 "statistics": self.statistics
         }
         return json.dumps(str_data, indent=4, sort_keys=True) 
-
-   
-# 
-# IDEA: The class definitions made here might be improved
 #
+# IDEA: parameters verification method for each spider
+#
+
+class FacebookUsers(Spider):
+    """ Retrieves a set of facebook users """
+    def __init__(self, parameters, start_date, end_date):
+        """ Parameters must be a set or a list of facebook usernames or ids """
+        Spider.__init__(self, parameters, start_date, end_date)
+        self.usernames = set(parameters)
+    
+    def run(self, blender, responses_handler):
+        blender.load_server("facebook")
+        blender.load_interaction("user")
+        for username in self.usernames:
+            if self.stop_now:
+                break
+            # Else ..
+            # Sets parameters and executes interaction
+            blender.set_url_params({"ids": username})
+            response = blender.blend()
+            # Stops here if it is not succesful
+            success = response['successful_interaction'] 
+            if not success:
+                break
+            # Else ..
+            # Handles response
+            self.handle_response(response, responses_handler)
+
 
 class FacebookSearch(Spider):
     def __init__(self, parameters, start_date, end_date):

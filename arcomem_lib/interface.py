@@ -77,7 +77,7 @@ class APICrawlerInterface:
         # use the generic add_crawl method
         # Returns the right number
         #
-        # Not implemented yet, waiting for Nikos
+        # TODO: Implements Nikos method
         #
         return 500
 

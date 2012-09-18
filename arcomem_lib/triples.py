@@ -60,6 +60,7 @@ class TripleManager:
 #               self.s.send(string_chunk)
 #               self.close_socket()
 #
+                # TODO: use put_triples method provided by Nikos
                 raise NotImplementedError, 'waiting for Nikos' 
             except Exception as e:
                 triples_transferred = False
@@ -108,11 +109,16 @@ class TripleManager:
         return outlinks.union(new_outlinks), self._triples.qsize()
         
 
-#
-#   IDEA: triples could be marked with a datetime
-#
-
+    #
+    # IDEAs: 
+    # triples could be marked with a datetime
+    # (has to be discussed with the triple consumers)
+    # harmonize publication_date (raw pub date et harm pub date)
+    # harmonize location (raw location et harm location)
+    # harmonize language (raw location et harm location)
+    #
     def make_triples(self, content_item, blender_config, outlinks):
+        """ Makes harmonized triples """
         triples = []
         api = '' 
         post = ['' for i in range(8)]
@@ -169,6 +175,17 @@ class TripleManager:
                 to_user[3] = item['name']
                 to_user[4] = item['screen_name']
                 users.append( to_user )
+        if  (blender_config['server'], blender_config['interaction']) \
+            == ('facebook', 'users'):
+                user = ['' for i in range(7)]
+                user[0] = 'facebook/user/'  + str(content_item['id'])
+                user[1] = content_item['id']
+                user[2] = 'http://www.facebook.com/%s' % (content_item['id'])
+                user[3] = content_item['name']
+                user[4] = content_item['username']
+                if content_item.get('location',''):
+                    user[6] = content_item['location']
+                users.append(user)
         if  (blender_config['server'], blender_config['interaction']) \
             == ('facebook', 'search'):
             api = 'facebook'
@@ -288,15 +305,11 @@ class TripleManager:
         triples = [triple for triple in triples if triple[2]]
         new_outlinks = set([triple[2] for triple in triples if \
                         str(triple[1]) == 'url'])
-        # TODO: harmonize publication_date (raw pub date et harm pub date)
-        # TODO: harmonize location (raw location et harm location)
-        # TODO: harmonize language (raw location et harm location)
         return triples, new_outlinks
 
 #
 #       Deprecated socket communication
 #
-
 #    def initiate_socket_connection(self, host='localhost', port=19898):
 #        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 #        self.s.connect((host, port))
@@ -305,20 +318,20 @@ class TripleManager:
 #        self.s.close()
 
 #
-#       Deprecated method
-#
-    def stringify_triples(self, triples):
-        string_triples = []
-        for triple in triples:
-            string_triple = []
-            for position, item  in enumerate(triple):
-                if position < 2:
-                    item = 'apicrawler:' + json.dumps(item)
-                else:
-                    item = json.dumps(item)
-                string_triple.append(item.replace('"',''))
-            string_triple = "\\SPO".join(string_triple)
-            string_triples.append(string_triple)
-        string_triples = "\\EOT".join(string_triples)
-        string_triples += "\\EOL"
-        return string_triples
+#       Deprecated method used for the socket communication
+##
+#    def stringify_triples(self, triples):
+#        string_triples = []
+#        for triple in triples:
+#            string_triple = []
+#            for position, item  in enumerate(triple):
+#                if position < 2:
+#                    item = 'apicrawler:' + json.dumps(item)
+#                else:
+#                    item = json.dumps(item)
+#                string_triple.append(item.replace('"',''))
+#            string_triple = "\\SPO".join(string_triple)
+#            string_triples.append(string_triple)
+#        string_triples = "\\EOT".join(string_triples)
+#        string_triples += "\\EOL"
+#        return string_triples
