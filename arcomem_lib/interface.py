@@ -25,6 +25,8 @@ logger = logging.getLogger('apicrawler')
 class APICrawlerInterface:
     """ Interface to the external world """
     def __init__(self):
+        # Dummy call of strptime (thread bug)
+        datetime.datetime.strptime('2012-01-01', '%Y-%m-%d')
         logger.info('Starting the APICrawler')
         self.responses_handler = responses.ResponsesHandler()
         # Contains the crawls
@@ -91,7 +93,15 @@ class APICrawlerInterface:
             _crawls.add(crawl)
             self.crawls.add(crawl)
         self.campaign_ids.add(campaign_id)
-        return [__crawl._id for __crawl in _crawls]
+        crawl_tuple_list = []
+        for __crawl in _crawls:
+            if __crawl.start_date:
+                start_date_str = \
+                    __crawl.start_date.strftime(config.datetime_format)
+            else:
+                start_date_str = 'None'
+            crawl_tuple_list.append((__crawl._id, start_date_str))
+        return crawl_tuple_list
 
     def add_triple_store_crawl(self, triple_store_crawl_id):
         """ Gets crawl specifications from the triple store and adds it
@@ -151,10 +161,6 @@ class APICrawlerInterface:
         del crawl
         return 200
 
-    #
-    #   Methods not used by the pipeline
-    #
-
     def get_crawl(self, crawl_id):
         """ Returns a crawl or None from a crawl_id """
         for crawl in self.crawls:
@@ -163,7 +169,7 @@ class APICrawlerInterface:
         return None
 
     def get_campaign_crawls(self, campaign_id):
-        """ Returns a crawl or None from a crawl_id """
+        """ Returns crawls from a campaign_id """
         return [crawl for crawl in self.crawls if 
                 crawl.campaign_id == campaign_id]
 
@@ -184,6 +190,9 @@ class APICrawlerInterface:
                 break
         return platform
         
+#
+#       Not used
+#
 
 class CampaignStatistics:
     """ Statistics belonging to a campaign """

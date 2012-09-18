@@ -87,7 +87,7 @@ def build_crawl_data(crawl):
         start_date_str = 'None'
     if crawl.actual_start_date:
         actual_start_date_str = \
-            crawl.actual_start_date.strftime(config.datetime_format) + 1
+            crawl.actual_start_date.strftime(config.datetime_format)
     else:
         actual_start_date_str = 'None'
     if crawl.actual_end_date:
