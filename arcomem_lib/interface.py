@@ -196,11 +196,15 @@ class Platform:
             # Processes only waiting spiders 
             if not spider.status == 'waiting':
                 return
-            # If it is not the time yet, it puts the spider at the end of
+            # If it is not the time yet, puts the spider at the end of
             # the queue
             if spider.start_date:
                 if spider.start_date > datetime.datetime.now():
                     self.queue.put(spider)
+                    continue
+            # Does not process if the end_date is passed
+            if spider.end_date:
+                if spider.end_date < datetime.datetime.now():
                     continue
             # Else ..
             self.logger.info('[Starting spider] \n%s' % spider)

@@ -42,6 +42,22 @@ tests = [
     ],
     [ 
         'Crawls information', '/crawls', 'GET', ''
+    ],
+    [ 
+        'Adding a crawl ending one hour ago', '/crawl/add_direct', 'POST', 
+        ['twitter', 'search', ['helium'], 'my_campaign',
+            None,
+            (datetime.datetime.now() + 
+            datetime.timedelta(hours=-1)).strftime(config.datetime_format),
+            1]      
+    ],
+    [
+        'Adding a crawl ending one hour ago', '/crawl/add_direct', 'POST', 
+        ['twitter', 'search', ['helium'], 'my_campaign',
+            None,
+            (datetime.datetime.now() + 
+            datetime.timedelta(hours=-1)).strftime(config.datetime_format),
+            1]      
     ]
 ]
 

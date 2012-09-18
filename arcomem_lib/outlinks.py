@@ -14,6 +14,16 @@ class OutlinksManager:
     def __init__(self):
         self.outlinks_queue = Queue.Queue()
         self.start_daemon()
+        logger.info('Outlinks Manager started')
+        # The backup file is used for outlinks that where not successfully
+        # transferred to the crawler
+        #
+        # IDEA: we could have a mecanism similar to the one for the triple
+        # store with a changing file name when it gets too big.
+        #
+        self.backup_file = os.path.join(   config.outlinks_path, 
+                                      'backup.outlinks.txt') 
+        logger.info('Backup file: %s' % self.backup_file)
 
     def start_daemon(self):
         t = Thread(target=self.outlinks_daemon)
@@ -24,27 +34,39 @@ class OutlinksManager:
             self.outlinks_queue.put(outlink)
 
     def outlinks_daemon(self):
-        outlinks = []
+        """ Loops and takes care of outlinks in the queue """
+        outlinks_chunk = []
+        save_backup = False
         while True:
-            #time.sleep(0.05)
-            outlinks_at_a_time = 10
-            while len(outlinks) < outlinks_at_a_time:
-                try:
-                    outlinks.append(self.outlinks_queue.get(False))
-                except Queue.Empty:
-                    continue
+            chunk_size = config.outlinks_chunk_size
+            # Waits for the chunk to be complete
+            while len(outlinks_chunk) < chunk_size:
+                outlinks_chunk.append(self.outlinks_queue.get(True))
+            # Sends the chunk
+            logger.info('[In progress] Sending %s outlinks to the crawler'\
+                        % chunk_size)
             try:
-                self.send_outlinks(outlinks)
-                prefix = 'success.'
-            except Exception:
-                prefix = 'failure.'
-            outlinks_file = os.path.join(   config.outlinks_path, 
-                                            prefix + 'outlinks.txt') 
-            with open(outlinks_file, 'a') as _outlinks_file:
-                _outlinks_file.write(json.dumps(outlinks) + '\n')
-            del outlinks[:]
+                # TODO: sends to heritrix so far, IMF crawler?
+                self.send_outlinks_to_heritrix(outlinks_chunk)
+                logger.warning('[Success] Sent %s outlinks to the crawler'\
+                        % chunk_size)
+            except Exception as e:
+                logger.warning('[Failure] Exception occured during an '
+                               'attempt to send the outlinks: %s' % e)
+                save_backup = True
+            if save_backup:
+                logger.info('[In progress] Saving outlinks to backup file')
+                with open(self.backup_file, 'a') as _backup_file:
+                    _backup_file.write( ' ** Backup **\nDate: ' + \
+                    datetime.datetime.now().strftime(config.datetime_format)\
+                    + '\n')
+                    _backup_file.write(json.dumps(outlinks_chunk) + '\n')
+                logger.info('[Success] Saved outlinks to backup file')
+            # Cleans variables
+            del outlinks_chunk[:]
+            save_backup = False
 
-    def send_outlinks(self, outlinks):
+    def send_outlinks_to_heritrix(self, outlinks):
         heritrix_connection = httplib.HTTPConnection( \
                 'ia200127.eu.archive.org', 8080, timeout=0.1 )
         heritrix_connection.connect()
@@ -59,5 +81,6 @@ class OutlinksManager:
         response = heritrix_connection.getresponse()
         if response.status <> 200:
             logger.warning('Connexion with Heritrix broken')
+            raise Exception, 'Wrong status code'
         heritrix_connection.close()
         del outlinks_bulk[:]

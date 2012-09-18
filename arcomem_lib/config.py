@@ -63,3 +63,6 @@ warcs_rate_period = 300
 
 # Outlinks directory
 outlinks_path = os.path.join(output_path, 'outlinks')
+
+# Size of the chunk sent to the crawler
+outlinks_chunk_size = 100000
