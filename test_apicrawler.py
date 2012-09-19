@@ -27,7 +27,7 @@ tests = [
     [ 
         'Adding a crawl with start and end', '/crawl/add_direct', 'POST', 
         ['twitter', 'search', ['helium'], 'my_campaign',
-            datetime.datetime.now().strftime(config.datetime_format),
+            None,
             (datetime.datetime.now() + 
                 datetime.timedelta(hours=2)).strftime(config.datetime_format),
             1, 'my_id']      

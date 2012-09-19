@@ -13,27 +13,15 @@ logger = logging.getLogger('triples')
 
 class TripleManager:
     def __init__(self):
-        self._triples = Queue.Queue()
-        self.s = None
-        self.start_daemons()
+        self.triples_queue = Queue.Queue()
+        self.start_daemon()
         logger.info('Triples Manager started')
         self.set_new_file()
         self.chunk_counter = 0
 
-    def start_daemons(self):
+    def start_daemon(self):
         triples_daemon_thread = Thread(target=self.triples_daemon)
         triples_daemon_thread.start() 
-        writing_rate_thread = Thread(target=self.writing_rate_daemon)
-        writing_rate_thread.start() 
-
-    def writing_rate_daemon(self):
-        """ Periodically reports on the triples writing rate """
-        _period = config.triples_rate_period
-        while True:
-            time.sleep(_period)
-            logger.info('In the last %d s, I processed %d chunks' %
-                    (_period, self.chunk_counter))
-            self.chunk_counter = 0
 
     def triples_daemon(self): 
         """ Looks into the triples queue and sends chunks to the triple
@@ -41,58 +29,49 @@ class TripleManager:
         while True:
             chunk = []
             chunk_size=config.triples_chunk_size
-            for i in range(0, chunk_size):
-                # If the queue is empty, it will wait till a new triple is
-                # added to the queue
-                triple = self._triples.get(True)
-                chunk.append(triple)
-            json.dump
-            if not chunk:
-                continue
+            save_backup = False
+            while len(chunk) < chunk_size:
+                # Waits for the chunk to be full
+                chunk.append(self.triples_queue.get(True))
             logger.info('[In progress] Sending %s triples to the triple store' 
                         % chunk_size)
-            triples_transferred = True
             try:
-#
-#               Deprecated triple store socket communication
-#
-#               self.initiate_socket_connection()
-#               self.s.send(string_chunk)
-#               self.close_socket()
-#
                 # TODO: use put_triples method provided by Nikos
                 raise NotImplementedError, 'waiting for Nikos' 
+                logger.info('[Success] Sent %s triples to the triple store' 
+                            % chunk_size)
             except Exception as e:
-                triples_transferred = False
-            if not triples_transferred:
-                # Writing non transferred triples in a file
+                logger.warning('[Failure] Exception occured during an '
+                               'attempt to send the triples: %s' % e)
+                save_backup = True
+            # Writes non transferred triples in a backup file
+            if save_backup:
                 #
                 # IDEA: there could be a retry mecanism for non transferred
                 # triples
                 #
+                # Creates a new backup file if the current one is too big
                 try:
                     size = os.path.getsize(self.current_file)
                 except OSError:
                     size = 0
                 if size > 500 * 1024 * 1024:
                     self.set_new_file()
+                logger.info('[In progress] Saving triples to backup file' )
                 with open(self.current_file, 'a') as _f:
+                    _f.write( ' ** Backup **\nDate: ' + \
+                    datetime.datetime.now().strftime(config.datetime_format)\
+                    + '\n')
                     for triple in chunk:
                         _f.write(json.dumps(triple) + '\n')
-                logger.warning('[Failure] Could not send %s triples to'\
-                               'the triple store, saved it into the file'\
-                               ' instead' % chunk_size)
-            else:
-                logger.info('[Success] Sent %s triples to the triple store' 
-                            % chunk_size)
-            self.chunk_counter += 1
+                logger.info('[Success] Saved triples to backup file')
 
     def set_new_file(self):
         file_name = \
             datetime.datetime.now().strftime(config.datetime_format) \
             + '.txt'
         self.current_file = os.path.join(config.triples_path, file_name)
-        logger.info('Writing non transferred triples in %s' 
+        logger.info('Backup file: %s' 
                      % self.current_file) 
    
     def add_content_item(self, content_item, blender_config, outlinks):
@@ -105,12 +84,13 @@ class TripleManager:
             logger.error('Could not convert %s, error: %s'
                          % (content_item,e))
         for triple in triples:
-            self._triples.put(triple)
-        return outlinks.union(new_outlinks), self._triples.qsize()
+            self.triples_queue.put(triple)
+        return outlinks.union(new_outlinks), self.triples_queue.qsize()
         
 
     #
     # IDEAs: 
+    # This part could be arranged with separated methods
     # triples could be marked with a datetime
     # (has to be discussed with the triple consumers)
     # harmonize publication_date (raw pub date et harm pub date)
@@ -316,6 +296,14 @@ class TripleManager:
 #
 #    def close_socket(self):
 #        self.s.close()
+
+#
+#               Deprecated triple store socket communication
+#
+#               self.initiate_socket_connection()
+#               self.s.send(string_chunk)
+#               self.close_socket()
+#
 
 #
 #       Deprecated method used for the socket communication

@@ -207,7 +207,7 @@ class Platform:
                 if spider.end_date < datetime.datetime.now():
                     continue
             # Else ..
-            self.logger.info('[Starting spider] \n%s' % spider)
+            self.logger.info('[Starting spider] id: %s' % id(spider))
             spider.wrapper_run(self.blender, self.responses_handler)
             output_warc = self.responses_handler.warcs_handler.warc_file_path
             spider.output_warc = output_warc
@@ -223,47 +223,7 @@ class Crawl:
     """ A crawl is mostly a container for one or several spiders. """
     def __init__(self, platform_name, strategy, parameters, campaign_id, 
                  start_date, end_date, period_in_hours, crawl_id):
-        # Small trick about the start date
-        if start_date:
-            # Converting from string to an actual date
-            # Default conversion used
-            start_date = datetime.datetime.strptime(start_date,
-                                                    config.datetime_format)
-            if start_date < datetime.datetime.now():
-                start_date = datetime.datetime.now()
-        #
-        #   Takes care of creating the spiders
-        #
-        # Sees how many spiders we need
-        number_of_spiders = 1
-        if period_in_hours and end_date:
-            # Converting from string to an actual date
-            # Default conversion used
-            end_date = datetime.datetime.strptime(end_date,
-                                                  config.datetime_format)
-            crawling_time = end_date - start_date
-            crawling_time_in_hours = crawling_time.total_seconds()/3600
-            number_of_spiders = \
-                int(math.ceil(crawling_time_in_hours/period_in_hours)) + 1
-        # Creates one or more spiders
-        self.spiders = []
-        for i in range(0, number_of_spiders):
-            timedelta_hours = i * period_in_hours
-            if number_of_spiders > 1:
-                this_start_date = \
-                start_date + datetime.timedelta(hours=timedelta_hours)
-            else:
-                this_start_date = start_date
-            # Creates the right spider
-            spider_class = config.spider_mapping[(platform_name, strategy)]
-            # IDEA: This eval could be improved
-            new_spider = eval('spiders.' + spider_class +
-                '(parameters, this_start_date, end_date)')
-            self.spiders.append(new_spider)
-        #
-        #   Back to the crawl
-        #
-        # Id is set externally
+        # Id can be set externally
         if crawl_id:
             self._id = crawl_id
         else:
@@ -273,9 +233,66 @@ class Crawl:
         self.strategy = strategy
         self.parameters = parameters
         self.campaign_id = campaign_id
+        # Start date
+        if start_date:
+            # Converting from string to a datetime object
+            # Default conversion used
+            start_date = datetime.datetime.strptime(start_date,
+                                                    config.datetime_format)
+            if start_date < datetime.datetime.now():
+                start_date = datetime.datetime.now()
+                logger.warning('Start date for crawl id: %s is old, replaced' 
+                               ' by current datetime' % self._id)
+        else:
+            start_date = datetime.datetime.now()
         self.start_date = start_date
+        # End date
+        if end_date:
+            # Converting from string to a datetime object
+            # Default conversion used
+            end_date = datetime.datetime.strptime(end_date,
+                                                  config.datetime_format)
+            if start_date >= end_date:
+                logger.warning('Start date >= End date, ignoring end date'
+                               ' information for crawler id: %s' % self._id)
+                end_date = None
         self.end_date = end_date
+        # Period in hours
+        if not period_in_hours:
+            self.period_in_hours = None
+        elif int(period_in_hours) > 0:
+                self.period_in_hours = int(period_in_hours)
+        else:
+            logger.warning('Period in hours has to be None or > 0. Ignoring period'
+                       ' for crawler %s' % self._id)
+            self.period_in_hours = None
+        # Creating the spiders
+        self.create_spiders()
 
+    def create_spiders(self):
+        """ Create spiders depending on start date, end date and period """
+        # Sees how many spiders we need
+        number_of_spiders = 1
+        if self.period_in_hours and self.start_date and self.end_date:
+                crawling_time = self.end_date - self.start_date
+                crawling_time_in_hours = crawling_time.total_seconds()/3600
+                number_of_spiders = \
+                    int(math.ceil(crawling_time_in_hours/self.period_in_hours)) + 1
+        # Creates one or more spiders
+        self.spiders = []
+        for i in range(0, number_of_spiders):
+            if number_of_spiders > 1:
+                timedelta_hours = i * self.period_in_hours
+                this_start_date = \
+                self.start_date + datetime.timedelta(hours=timedelta_hours)
+            else:
+                this_start_date = self.start_date
+            # Creates the right spider
+            spider_class = config.spider_mapping[(self.platform_name, self.strategy)]
+            new_spider = eval('spiders.' + spider_class +
+                '(self.parameters, this_start_date, self.end_date)')
+            self.spiders.append(new_spider)
+        
     def stop_crawl(self):
         http_status = 0
         for spider in self.spiders:
@@ -326,11 +343,13 @@ class Crawl:
                 "status": spider.status})
         str_data = {
                 "id": self._id,
+                "dates": {
+                    "start_date": start_date_str,
+                    "end_date": end_date_str
+                },
                 "platform": self.platform_name,
                 "strategy": self.strategy,
                 "parameters": self.parameters,
-                "start_date": start_date_str,
-                "end_date": end_date_str,
                 "spiders": spiders_str
         }
         return json.dumps(str_data, indent=4, sort_keys=True)

@@ -81,10 +81,12 @@ class Spider:
             actual_end_date_str = 'None'
         str_data = {
                 "id": id(self),
-                "start_date": start_date_str,
-                "end_date": end_date_str,
-                "actual_start_date": actual_start_date_str,
-                "actual_end_date": actual_start_date_str,
+                "dates": {
+                    "start_date": start_date_str,
+                    "end_date": end_date_str,
+                    "actual_start_date": actual_start_date_str,
+                    "actual_end_date": actual_end_date_str
+                },
                 "running time in seconds": self.running_time,
                 "statistics": self.statistics
         }

@@ -22,6 +22,9 @@ class ResponsesHandler:
         # Regarding triples and outlinks, we need to process each item of the
         # response (e.g. a tweet)
         content_items = self.get_content_items(response)
+        if not content_items:
+            return 0,0
+        # Else ..
         blender_config = response['blender_config']
         headers = response['headers']
         total_outlinks, total_triples = 0, 0
@@ -40,13 +43,13 @@ class ResponsesHandler:
         except Exception:
             try:
                 # Ad hoc add on for facebook users
-                # Not great, I agree (cf IDEA up above)
+                # Not great, IDEA: find a way to improve that 
                 for key in content_item:
                     content_item[key]['id']
                     content_item = content_item[key]
             except Exception:
-                logger.error('Processing the output, could not find a right
-                             content item: %s' % (content_item))
+                logger.error('Processing the output, could not find an id'
+                             'for content item: %s' % (content_item))
                 return None
         init_outlinks = set()
         content_item_outlinks = list(self.extract_outlinks( content_item, 
@@ -59,30 +62,29 @@ class ResponsesHandler:
         self.outlinks_handler.add_outlinks(all_outlinks)
         return len(all_outlinks), total_triples
 
-    def find_response_content(self, response):
-        """ Manually finds all the content items (e.g. a tweet) in the
-        response """
+    def get_content_items(self, response):
+        """ Finds all the content items (e.g. a tweet) in the response """
         content = response['loaded_content']
+        content_items = None 
         # Tries the paths defined in config.py
         server, interaction = response['blender_config']['server'], \
                               response['blender_config']['interaction']
-        content_path = config.response_content_paths((server, interaction))
+        content_path = config.response_content_paths[(server, interaction)]
         if not content_path:
-            content_items = response['loaded_content']
+            content_items = []
+            content_items.append(response['loaded_content'])
+            return content_items
+        # Else ..
         found = False
-        response_content = response['loaded_content']
-        for key in path.split('.'):
+        content_items = content
+        for key in content_path.split('.'):
             try:
-                response_content = response_content[key]
-                found = True
-            except Exception:
-                found = False
-                break
-            # If one works, it returns directly
-            if found:
-                return response_content
-        # Nothing worked, it returns the loaded content
-        return response['loaded_content']
+                content_items = content_items[key]
+            except Exception as e:
+                logger.warning('Could not parse response, check config.py'\
+                    '\nResponse content: %s\nPython error: %s' % (content,e))
+                return []
+        return content_items 
 
     def extract_outlinks(self, _content, outlinks):
         if type(_content) is dict:

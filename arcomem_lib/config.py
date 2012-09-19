@@ -15,10 +15,10 @@ output_path = os.path.join(os.path.dirname(__file__), "output")
 response_content_paths = { 
     ('facebook', 'search'):                 'data',
     ('facebook', 'users'):                  '',
-    ('flickr', 'search'):                   'photos.photo',
+    ('flickr', 'photos_search'):            'photos.photo',
     ('google_plus', 'activities_search'):   'items',
     ('youtube', 'search'):                  'feed.entry',
-    ('twitter', 'search'):                  'results'
+    ('twitter-search', 'search'):           'results'
 }
 
 # String format for date-time
@@ -67,4 +67,4 @@ warcs_rate_period = 300
 outlinks_path = os.path.join(output_path, 'outlinks')
 
 # Size of the chunk sent to the crawler
-outlinks_chunk_size = 100000
+outlinks_chunk_size = 50000

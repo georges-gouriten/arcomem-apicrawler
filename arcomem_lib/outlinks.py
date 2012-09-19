@@ -9,7 +9,10 @@ import os
 import config
 
 logger = logging.getLogger('outlinks')
-
+#
+# IDEA: Could have a backup file change mecanism (like for outlinks), see
+# if this is relevant
+#
 class OutlinksManager:
     def __init__(self):
         self.outlinks_queue = Queue.Queue()
@@ -36,10 +39,10 @@ class OutlinksManager:
     def outlinks_daemon(self):
         """ Loops and takes care of outlinks in the queue """
         outlinks_chunk = []
+        chunk_size = config.outlinks_chunk_size
         save_backup = False
         while True:
-            chunk_size = config.outlinks_chunk_size
-            # Waits for the chunk to be complete
+            # Waits for the chunk to be full
             while len(outlinks_chunk) < chunk_size:
                 outlinks_chunk.append(self.outlinks_queue.get(True))
             # Sends the chunk
