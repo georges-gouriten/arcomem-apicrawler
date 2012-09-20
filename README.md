@@ -21,7 +21,7 @@ Web interface. It has been developed for the [ARCOMEM project][arcomem].
 ## Development notes
 
 If you are interested in the internal mechanics of the API Crawler, please
-see the [development notes](DEV.md).
+see *DEV.md*.
 
 ## License
 
