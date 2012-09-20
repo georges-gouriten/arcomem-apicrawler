@@ -14,6 +14,8 @@ logger = logging.getLogger('outlinks')
 # if this is relevant
 #
 class OutlinksManager:
+    """ Extracts outlinks from API responses and sends them to the crawler
+    or writes it into a backup file """
     def __init__(self):
         self.outlinks_queue = Queue.Queue()
         self.start_daemon()
@@ -33,6 +35,7 @@ class OutlinksManager:
         t.start()
 
     def add_outlinks(self, outlinks):
+        """ Adds outlinks to the queue """
         for outlink in outlinks:
             self.outlinks_queue.put(outlink)
 
@@ -70,6 +73,7 @@ class OutlinksManager:
             save_backup = False
 
     def send_outlinks_to_heritrix(self, outlinks):
+        """ Sends outlinks to Heritrix crawler on machine ia200127 """
         heritrix_connection = httplib.HTTPConnection( \
                 'ia200127.eu.archive.org', 8080, timeout=0.1 )
         heritrix_connection.connect()

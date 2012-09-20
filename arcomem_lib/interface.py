@@ -4,6 +4,7 @@ from threading import Thread
 import logging
 import math
 import datetime
+import time
 import json
 
 import apiblender
@@ -82,6 +83,7 @@ class APICrawlerInterface:
         return 500
 
     def stop_crawl(self, crawl_id):
+        """ Stops crawl """
         crawl = self.get_crawl(crawl_id)
         if not crawl:
             return 404
@@ -93,6 +95,7 @@ class APICrawlerInterface:
     #   IDEA: removed crawls could be dumped somewhere
     #
     def rm_crawl(self, crawl_id):
+        """ Deletes crawl """
         crawl = self.get_crawl(crawl_id)
         if not crawl:
             return 404
@@ -122,10 +125,6 @@ class APICrawlerInterface:
                 return crawl
         return None
 
-    def get_platforms_load(self):
-        """ Returns load of the different platforms """ 
-        return [platform.queue.qsize() for platform in self.platforms]
-
     def get_platform(self, platform_name):
         """ Returns a platform object from a platform's name string """
         platform = False
@@ -136,7 +135,7 @@ class APICrawlerInterface:
         return platform
         
 #
-#       Not used currently
+#       Currently not served by the Web interface 
 #
 #       IDEA: Add campaign considerations
 
@@ -149,6 +148,10 @@ class APICrawlerInterface:
     def get_campaign_ids(self):
         """ Returns the campaign ids """
         return self.campaign_ids
+
+    def get_platforms_load(self):
+        """ Returns load of the different platforms """ 
+        return [platform.queue.qsize() for platform in self.platforms]
 
 
 #class CampaignStatistics:
@@ -190,6 +193,7 @@ class Platform:
         self.daemon_thread.start()
 
     def platform_daemon(self):
+        """ Loops and executes spiders """
         self.logger.info('Starting %s daemon' % (self.name))
         while True:
             spider = self.queue.get()
@@ -217,6 +221,7 @@ class Platform:
                         spider)
 
     def add_spider_to_queue(self, spider):
+        """ Adds a spider to the platform's queue """
         self.queue.put(spider)
 
 class Crawl:
@@ -270,7 +275,7 @@ class Crawl:
         self.create_spiders()
 
     def create_spiders(self):
-        """ Create spiders depending on start date, end date and period """
+        """ Create one or more spiders depending on start date, end date and period """
         # Sees how many spiders we need
         number_of_spiders = 1
         if self.period_in_hours and self.start_date and self.end_date:
@@ -294,6 +299,7 @@ class Crawl:
             self.spiders.append(new_spider)
         
     def stop_crawl(self):
+        """ Stops crawl """
         http_status = 0
         for spider in self.spiders:
             spider_http_status = self.stop_spider(spider)
@@ -302,6 +308,7 @@ class Crawl:
         return http_status
 
     def stop_spider(self, spider):
+        """ Stops spider """
         if spider.status == 'waiting':
             spider.status = 'stopped'
             return 200
@@ -325,7 +332,8 @@ class Crawl:
             # Makes not much sense to stop what is already stopped
             return 113
 
-    def __str__(self):
+    def get_dict(self):
+        """ Returns a JSON friendly dict of the interesting attributes """
         if self.start_date:
             start_date_str = \
                 self.start_date.strftime(config.datetime_format)
@@ -336,12 +344,11 @@ class Crawl:
                 self.end_date.strftime(config.datetime_format)
         else:
             end_date_str = 'None'
-        spiders_str = []
+        spiders_list = []
         for spider in self.spiders:
-            spiders_str.append({ 
-                "id": id(spider), 
-                "status": spider.status})
-        str_data = {
+            spiders_list.append(spider.get_dict())
+        return {
+                "campaign_id": self.campaign_id,
                 "id": self._id,
                 "dates": {
                     "start_date": start_date_str,
@@ -350,6 +357,8 @@ class Crawl:
                 "platform": self.platform_name,
                 "strategy": self.strategy,
                 "parameters": self.parameters,
-                "spiders": spiders_str
-        }
-        return json.dumps(str_data, indent=4, sort_keys=True)
+                "spiders": spiders_list
+               }
+
+    def __str__(self):
+        return json.dumps(self.get_dict(), indent=4, sort_keys=True)

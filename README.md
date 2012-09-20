@@ -1,8 +1,9 @@
 # ARCOMEM API Crawler
 
 ARCOMEM API Crawler: a crawler for the social Web controlled via a RESTful
-Web interface. Developed for the ARCOMEM project (http://arcomem.eu)
+Web interface. It has been developed for the [ARCOMEM project][arcomem].
 
+[arcomem]: http://arcomem.eu
 
 ## Requirements
 
@@ -16,6 +17,11 @@ Web interface. Developed for the ARCOMEM project (http://arcomem.eu)
 * Clone the project 
 * Execute ```python apicrawler.py```
 * Use the rest interface as described on the arcomem internal wiki
+
+## Development notes
+
+If you are interested in the internal mechanics of the API Crawler, please
+see the [development notes](DEV).
 
 ## License
 

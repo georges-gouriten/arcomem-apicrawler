@@ -1,0 +1,33 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html><head><title>Python: module test_apicrawler</title>
+</head><body bgcolor="#f0f0f8">
+
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="heading">
+<tr bgcolor="#7799ee">
+<td valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial">&nbsp;<br><big><big><strong>test_apicrawler</strong></big></big></font></td
+><td align=right valign=bottom
+><font color="#ffffff" face="helvetica, arial"><a href=".">index</a><br><a href="file:/home/georges/dev/arcomem/apicrawler/test_apicrawler.py">/home/georges/dev/arcomem/apicrawler/test_apicrawler.py</a></font></td></tr></table>
+    <p><tt>Tests&nbsp;the&nbsp;main&nbsp;calls&nbsp;of&nbsp;the&nbsp;API&nbsp;Crawler&nbsp;HTTP&nbsp;interface.&nbsp;A&nbsp;detailed<br>
+output&nbsp;is&nbsp;available&nbsp;in&nbsp;test.log</tt></p>
+<p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#aa55cc">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Modules</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#aa55cc"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><table width="100%" summary="list"><tr><td width="25%" valign=top><a href="arcomem_lib.config.html">arcomem_lib.config</a><br>
+</td><td width="25%" valign=top><a href="datetime.html">datetime</a><br>
+</td><td width="25%" valign=top><a href="httplib.html">httplib</a><br>
+</td><td width="25%" valign=top><a href="json.html">json</a><br>
+</td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#55aa55">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Data</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#55aa55"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><strong>tests</strong> = [['Adding a simple crawl', '/crawl/add_direct', 'POST', ['facebook', 'users', ['helium'], 'my_campaign'], 200], ['Adding a list of crawls', '/crawl/add_direct', 'POST', [['facebook', 'search', ['helium'], 'my_campaign'], ['flickr', 'search', ['helium'], 'my_campaign'], ['google_plus', 'search', ['helium'], 'my_campaign'], ['youtube', 'search', ['helium', 'style'], 'my_campaign']], 200], ['Adding a crawl with start and end', '/crawl/add_direct', 'POST', ['twitter', 'search', ['helium'], 'my_campaign', None, '2012-09-20_17:23:09', 1, 'my_id'], 200], ['Crawls information', '/crawls', 'GET', '', 200], ['Stops crawl', '/crawl/my_id/stop', 'POST', '', 200], ['Crawl information', '/crawl/my_id', 'GET', '', 200], ['Deletes crawl', '/crawl/my_id', 'DEL', '', 200], ['Crawls information', '/crawls', 'GET', '', 200], ['Adding a crawl ending one hour ago', '/crawl/add_direct', 'POST', ['twitter', 'search', ['helium'], 'my_campaign', None, '2012-09-20_14:23:09', 1], 200]]</td></tr></table>
+</body></html>

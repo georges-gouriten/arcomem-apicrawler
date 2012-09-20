@@ -1,0 +1,68 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html><head><title>Python: module arcomem_lib.triples</title>
+</head><body bgcolor="#f0f0f8">
+
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="heading">
+<tr bgcolor="#7799ee">
+<td valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial">&nbsp;<br><big><big><strong><a href="arcomem_lib.html"><font color="#ffffff">arcomem_lib</font></a>.triples</strong></big></big></font></td
+><td align=right valign=bottom
+><font color="#ffffff" face="helvetica, arial"><a href=".">index</a><br><a href="file:/home/georges/dev/arcomem/apicrawler/arcomem_lib/triples.py">/home/georges/dev/arcomem/apicrawler/arcomem_lib/triples.py</a></font></td></tr></table>
+    <p></p>
+<p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#aa55cc">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Modules</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#aa55cc"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><table width="100%" summary="list"><tr><td width="25%" valign=top><a href="Queue.html">Queue</a><br>
+<a href="arcomem_lib.config.html">arcomem_lib.config</a><br>
+</td><td width="25%" valign=top><a href="datetime.html">datetime</a><br>
+<a href="json.html">json</a><br>
+</td><td width="25%" valign=top><a href="logging.html">logging</a><br>
+<a href="os.html">os</a><br>
+</td><td width="25%" valign=top><a href="time.html">time</a><br>
+</td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ee77aa">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Classes</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#ee77aa"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><dl>
+<dt><font face="helvetica, arial"><a href="arcomem_lib.triples.html#TripleManager">TripleManager</a>
+</font></dt></dl>
+ <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="TripleManager">class <strong>TripleManager</strong></a></font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt>Makes&nbsp;and&nbsp;handles&nbsp;triples<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="TripleManager-__init__"><strong>__init__</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="TripleManager-add_content_item"><strong>add_content_item</strong></a>(self, content_item, blender_config, outlinks)</dt><dd><tt>Makes&nbsp;triples&nbsp;from&nbsp;a&nbsp;content_item&nbsp;and&nbsp;adds&nbsp;them&nbsp;to&nbsp;the&nbsp;queue</tt></dd></dl>
+
+<dl><dt><a name="TripleManager-make_triples"><strong>make_triples</strong></a>(self, content_item, blender_config, outlinks)</dt><dd><tt>Makes&nbsp;harmonized&nbsp;triples</tt></dd></dl>
+
+<dl><dt><a name="TripleManager-set_new_file"><strong>set_new_file</strong></a>(self)</dt><dd><tt>Changes&nbsp;the&nbsp;backup&nbsp;file</tt></dd></dl>
+
+<dl><dt><a name="TripleManager-start_daemon"><strong>start_daemon</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="TripleManager-triples_daemon"><strong>triples_daemon</strong></a>(self)</dt><dd><tt>Looks&nbsp;into&nbsp;the&nbsp;triples&nbsp;queue&nbsp;and&nbsp;sends&nbsp;chunks&nbsp;to&nbsp;the&nbsp;triple<br>
+store&nbsp;or&nbsp;saves&nbsp;it&nbsp;into&nbsp;the&nbsp;backup&nbsp;file&nbsp;if&nbsp;it&nbsp;failed</tt></dd></dl>
+
+</td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#55aa55">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Data</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#55aa55"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><strong>logger</strong> = &lt;logging.Logger object&gt;</td></tr></table>
+</body></html>

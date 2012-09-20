@@ -12,6 +12,7 @@ logger = logging.getLogger('triples')
 
 
 class TripleManager:
+    """ Makes and handles triples """
     def __init__(self):
         self.triples_queue = Queue.Queue()
         self.start_daemon()
@@ -25,7 +26,7 @@ class TripleManager:
 
     def triples_daemon(self): 
         """ Looks into the triples queue and sends chunks to the triple
-        store """
+        store or saves it into the backup file if it failed """
         while True:
             chunk = []
             chunk_size=config.triples_chunk_size
@@ -67,6 +68,7 @@ class TripleManager:
                 logger.info('[Success] Saved triples to backup file')
 
     def set_new_file(self):
+        """ Changes the backup file """
         file_name = \
             datetime.datetime.now().strftime(config.datetime_format) \
             + '.txt'
@@ -75,6 +77,7 @@ class TripleManager:
                      % self.current_file) 
    
     def add_content_item(self, content_item, blender_config, outlinks):
+        """ Makes triples from a content_item and adds them to the queue """
         triples = []
         new_outlinks = set()
         try:

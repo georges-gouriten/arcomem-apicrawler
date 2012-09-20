@@ -1,3 +1,5 @@
+""" This is the Web interface of the API Crawler """
+
 import web
 from web import form
 import json
@@ -31,6 +33,7 @@ apicrawler_interface = interface.APICrawlerInterface()
 #
 # HTTP Response classes
 #
+
 
 class add_crawl_from_triple_store:
     def POST(self):
@@ -79,6 +82,7 @@ class add_crawl_directly:
                 raise WrongFormat, e
             return json.dumps(crawl_ids, sort_keys=True, indent=4)
 
+
 class crawl_information_or_deletion:    
     def GET(self, crawl_id):
         """ Returns crawl information """
@@ -100,6 +104,7 @@ class crawl_information_or_deletion:
         else:
             raise UnknownError
 
+
 class stop_crawl:
     def POST(self, crawl_id):
         """ Stops crawl """
@@ -116,17 +121,13 @@ class stop_crawl:
             raise UnknownError
 
 
-
 class crawls_information:
     def GET(self):
         """ Returns all crawls information """
-        crawls = apicrawler_interface.crawls
-        crawls_str = '[\n'
-        for crawl in crawls:
-            crawls_str += str(crawl) + ',\n'
-        crawls_str = crawls_str.rstrip(',\n')
-        crawls_str += '\n]'
-        return crawls_str
+        crawls_list = [] 
+        for crawl in apicrawler_interface.crawls:
+            crawls_list.append(crawl.get_dict())
+        return json.dumps(crawls_list, sort_keys=True, indent=4)
 
 #
 #       Error classes
@@ -134,6 +135,7 @@ class crawls_information:
 
 #Wrapper
 class GenericError(web.HTTPError):
+    """ Convenient wrapper for API crawler's error """
     def __init__(self, status, error_name, error_data):
         headers = {'Content-Type': 'text/html'}
         data = json.dumps([error_name, error_data], sort_keys=True,

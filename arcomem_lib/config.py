@@ -1,11 +1,16 @@
+""" Contains the configuration parameters of the different modules """
+
 import os
 
-#
-#       Generic
-#
+####################################
+####            Generic         ####
+####################################
 
 # Platforms managed by the apicrawler
 platforms = [ 'facebook', 'flickr', 'google_plus', 'twitter', 'youtube' ]
+
+# String format for date-time
+datetime_format = '%Y-%m-%d_%H:%M:%S'
 
 # Output directory
 output_path = os.path.join(os.path.dirname(__file__), "output")
@@ -21,9 +26,6 @@ response_content_paths = {
     ('twitter-search', 'search'):           'results'
 }
 
-# String format for date-time
-datetime_format = '%Y-%m-%d_%H:%M:%S'
-
 # Mapping platform, strategy to spider classes
 spider_mapping = {
     ('facebook', 'search'):     'FacebookSearch',
@@ -34,10 +36,9 @@ spider_mapping = {
     ('twitter', 'search'):      'TwitterSearch'
 }
 
-
-#
-#       Triples
-#
+####################################
+####            Triples         ####
+####################################
 
 # Triples directory
 triples_path = os.path.join(output_path, 'triples')
@@ -49,9 +50,9 @@ triples_rate_period = 300
 triples_chunk_size=100000
 
 
-#
-#       WARCs
-#
+####################################
+####            WARCs           ####
+####################################
 
 # WARCs directory
 warcs_path = os.path.join(output_path, 'warcs')
@@ -59,9 +60,10 @@ warcs_path = os.path.join(output_path, 'warcs')
 # How ofter the WARCs rate will be logged in seconds
 warcs_rate_period = 300
 
-#
-#       Outlinks
-#
+
+####################################
+####            Outlinks        ####
+####################################
 
 # Outlinks directory
 outlinks_path = os.path.join(output_path, 'outlinks')

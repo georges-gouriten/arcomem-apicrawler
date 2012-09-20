@@ -5,8 +5,9 @@ import interface
 # IDEA: use unittest python library
 #
 
-apic_interface = interface.APICrawlerInterface()
-interface.add_crawl([   'twitter',
-                        'search',
-                        ['green', 'peace'],
-                        'my_campaign_is_awesome'])
+if __name__ == '__main__':
+    apic_interface = interface.APICrawlerInterface()
+    interface.add_crawl([   'twitter',
+                            'search',
+                            ['green', 'peace'],
+                            'my_campaign_is_awesome'])

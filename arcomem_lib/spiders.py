@@ -10,7 +10,7 @@ logger = logging.getLogger('apicrawler')
 
 
 class Spider: 
-    """ A spider executes a specific crawl strategy """
+    """ A spider executes a specific crawling strategy """
     def __init__(self, parameters, start_date, end_date):
         self.statistics = {
             'total_responses': 0,
@@ -32,6 +32,7 @@ class Spider:
         self.stop_now = False 
 
     def handle_response(self, response, responses_handler):
+        """ Handles a blender response """
         if not response['successful_interaction']:
             return
         # Else ..
@@ -43,6 +44,7 @@ class Spider:
 
  
     def wrapper_run(self, blender, responses_handler):
+        """ Does some statistics and executes the run method """
         # Pre-run
         self.actual_start_date = datetime.datetime.now()
         self.status = 'running'
@@ -58,7 +60,8 @@ class Spider:
         """ Handled by subclasses """
         pass
 
-    def __str__(self):
+    def get_dict(self):
+        """ Returns a dict that is easy to JSONify """
         if self.start_date:
             start_date_str = \
                 self.start_date.strftime(config.datetime_format)
@@ -79,7 +82,7 @@ class Spider:
                 self.actual_end_date.strftime(config.datetime_format)
         else:
             actual_end_date_str = 'None'
-        str_data = {
+        return {
                 "id": id(self),
                 "dates": {
                     "start_date": start_date_str,
@@ -87,10 +90,14 @@ class Spider:
                     "actual_start_date": actual_start_date_str,
                     "actual_end_date": actual_end_date_str
                 },
+                "output_warc": self.output_warc,
                 "running time in seconds": self.running_time,
-                "statistics": self.statistics
-        }
-        return json.dumps(str_data, indent=4, sort_keys=True) 
+                "statistics": self.statistics,
+                "status": self.status
+               }
+
+    def __str__(self):
+        return json.dumps(self.get_dict(), indent=4, sort_keys=True) 
 #
 # IDEA: parameters verification method for each spider
 #
@@ -122,6 +129,7 @@ class FacebookUsers(Spider):
 
 
 class FacebookSearch(Spider):
+    """ Searches on the facebook graph """
     def __init__(self, parameters, start_date, end_date):
         Spider.__init__(self, parameters, start_date, end_date)
         self.keywords_str = string.join(parameters,' ')
@@ -167,6 +175,7 @@ class FacebookSearch(Spider):
 
 
 class FlickrSearch(Spider):
+    """ Searches among flickr photos """
     def __init__(self, parameters, start_date, end_date):
         Spider.__init__(self, parameters, start_date, end_date)
         self.keywords_str = string.join(parameters,' ')
@@ -199,6 +208,7 @@ class FlickrSearch(Spider):
                     break
 
 class GooglePlusSearch(Spider):
+    """ Searches among google plus activities """
     def __init__(self, parameters, start_date, end_date):
         Spider.__init__(self, parameters, start_date, end_date)
         self.keywords_str = string.join(parameters,' ')
@@ -229,6 +239,7 @@ class GooglePlusSearch(Spider):
 
 
 class TwitterSearch(Spider):
+    """ Searches among tweets """
     def __init__(self, parameters, start_date, end_date):
         Spider.__init__(self, parameters, start_date, end_date)
         self.keywords_str = string.join(parameters,' ')
@@ -254,6 +265,7 @@ class TwitterSearch(Spider):
 
 
 class YoutubeSearch(Spider):
+    """ Searches among youtube videos """
     def __init__(self, parameters, start_date, end_date):
         Spider.__init__(self, parameters, start_date, end_date)
         self.keywords_str = string.join(parameters,' ')
@@ -280,7 +292,7 @@ class YoutubeSearch(Spider):
 
 #
 # IDEA : More classes could be added, e.g., 
-# following a specific user, expanding from a keyword, etc. (future work)
+# following a specific user, expanding from a keyword, etc.
 #
 
 #

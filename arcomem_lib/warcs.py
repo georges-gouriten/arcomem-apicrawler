@@ -12,6 +12,7 @@ import config
 logger = logging.getLogger('warcs')
 
 class WARCManager:
+    """ Writes API responses into a WARC file """
     def __init__(self):
         self.warcinfo_id = None
         self.responses_queue = Queue.Queue()
@@ -44,9 +45,11 @@ class WARCManager:
             self.write_warc(response)
 
     def add_response(self, response):
+        """ Adds an API responses into the queue """
         self.responses_queue.put(response)
 
     def open_warc(self):
+        """ Opens a new WARC file """
         self.warc_file_path = os.path.join (
                 config.warcs_path,
                 "apicrawler.%s.warc.gz" % (
@@ -69,6 +72,7 @@ class WARCManager:
         logger.info("New WARC id: %s" % self.warcinfo_id)
 
     def write_warc(self, response):
+        """ Writes a response into a WARC file """
         #
         # Write response record
         #
@@ -118,4 +122,5 @@ class WARCManager:
         self.response_counter += 1
 
     def close_warc(self):
+        """ Closes the current WARC file """
         self.warc_file.close()
